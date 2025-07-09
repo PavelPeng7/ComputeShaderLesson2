@@ -1,4 +1,4 @@
-name: Deploy pages
+name: Deploy multiple Slidev presentations
 
 on:
   workflow_dispatch:
@@ -25,17 +25,19 @@ jobs:
         with:
           node-version: 'lts/*'
 
-      - name: Setup @antfu/ni
-        run: npm i -g @antfu/ni
+      - name: Install Slidev
+        run: npm install slidev
 
-      - name: Install dependencies
-        run: nci
+      - name: Build slides1.md
+        run: npx slidev build slides1.md --base /${{ github.event.repository.name }}/slides1/ --out dist/slides1
 
-      - name: Build
-        run: nr build --base /${{github.event.repository.name}}/
+      - name: Build slides2.md
+        run: npx slidev build slides2.md --base /${{ github.event.repository.name }}/slides2/ --out dist/slides2
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
