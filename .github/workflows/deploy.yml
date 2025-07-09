@@ -1,9 +1,9 @@
-name: Build and Deploy Slidev Presentations
+name: Deploy pages
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,37 +23,42 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: 'lts/*'
 
-      # 安装 Slidev CLI
-      - name: Install Slidev CLI
-        run: npm install -D @slidev/cli
+      # 安装 ni/nr 工具
+      - name: Setup @antfu/ni
+        run: npm i -g @antfu/ni
 
-      # 构建 slides1.md 幻灯片
+      # 安装项目依赖
+      - name: Install dependencies
+        run: nci
+
+      # 构建 slides1.md
       - name: Build slides1.md
-        run: npx slidev build slides1.md --base /${{ github.event.repository.name }}/slides1/ --out dist/slides1
+        run: nr slidev build slides1.md --base /${{ github.event.repository.name }}/slides1/ --out dist/slides1
 
-      # 构建 slides2.md 幻灯片
+      # 构建 slides2.md
       - name: Build slides2.md
-        run: npx slidev build slides2.md --base /${{ github.event.repository.name }}/slides2/ --out dist/slides2
+        run: nr slidev build slides2.md --base /${{ github.event.repository.name }}/slides2/ --out dist/slides2
 
-      - name: Configure GitHub Pages
+      # 配置 GitHub Pages
+      - name: Setup Pages
         uses: actions/configure-pages@v4
         with:
           enablement: true
 
-      - name: Upload built files
-        uses: actions/upload-pages-artifact@v3
+      # 上传整个 dist 文件夹
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   deploy:
-    needs: build
-    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
+    needs: build
+    runs-on: ubuntu-latest
+    name: Deploy
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
