@@ -4,11 +4,11 @@ colorSchema: light
 color: amber
 layout: cover
 routerMode: hash
-title: ComputeShaderLesson-1
+title: ComputeShaderLesson-2
 ---
 
-# `ComputeShader` Lesson-1
-ComputeShader绘制动态钻石粒子纹理
+# `ComputeShader` Lesson-2
+ComputeShader绘制粒子特效
 
 :: note ::
 

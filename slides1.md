@@ -223,7 +223,7 @@ color: indigo
 title: 2. Buffer设置
 ---
 
-# 2. Buffer设置
+# <mdi-book-open-variant /> 2. Buffer设置
 <hr>
 构建结构体数组，建立，填充，传递与释放Buffer
 

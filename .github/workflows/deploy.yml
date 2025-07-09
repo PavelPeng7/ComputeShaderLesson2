@@ -41,6 +41,8 @@ jobs:
       - name: Build slides2.md
         run: nr slidev build slides2.md --base /${{ github.event.repository.name }}/slides2/ --out dist/slides2
 
+      
+
       # 配置 GitHub Pages
       - name: Setup Pages
         uses: actions/configure-pages@v4
