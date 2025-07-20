@@ -7,607 +7,982 @@ routerMode: hash
 title: ComputeShaderLesson-2
 ---
 
-# `ComputeShader` Lesson-2
-ComputeShader绘制粒子特效
+# 图解`ComputeShader` -2
+ComputeShader绘制陨石实例(GPU Instance)
 
 :: note ::
-
 \* by **Pavel**
 
 
----
-layout: top-title-two-cols
-color: sky
-columns: is-one-half
-align: c-lt-lt
-title: 综述
----
-:: title ::
-# <mdi-book-open-variant /> 你将会学到
 
-:: left ::
-- 初步理解==GPU抽象架构==
-- 设置==结构体==，结构体==数组==，创建并设置==Buffer==
-- 创建并设置==RenderTexture==
-- ComputeShader计算==2d粒子==，==无缝纹理==
-
-
-:: right ::
-![图说明文字](https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/MagicBall.png?imageSlim)
-
----
-layout: section
-color: indigo
-title: 1. 认识 `GPU` 架构
----
-
-#  1. 认识 `GPU` 架构
-<hr>
-通过认识GPU，增强对ComputeShader操作掌握
-
-
----
-layout: top-title
-color: sky
-align: c
-title: GPU软件抽象层级对应关系
----
-
-:: title ::
-
-# <mdi-book-open-variant /> GPU软件抽象层级对应关系
-
-:: content ::
-| 概念    | 学校类比         | 描述                                                         |
-|---------|------------------|--------------------------------------------------------------|
-| Grid（网格）    | 年级             | 年级包含多个班级（Block），是任务调度的最高抽象层         |
-| Block（线程组）   | 班级             | 每个班级由多个学生组成，独立执行任务                       |
-| Warp（线程束）    | 兴趣小组         | 每组固定32人，执行相同任务；人数不够也会补齐               |
-| Thread（线程）  | 学生             | 每个 Thread 是最小执行单元，有自己的寄存器（课桌）         |
-
-<AdmonitionType type='important' >
-- 在ComputeShader中Grid通过Dispatch(x,y,z)分配 <br>
-- Block在ComputeShader中设置[numthreads(x,y,z)]<br>
-- 受Wrap的结构影响Block大小通常为32的倍数
-</AdmonitionType>
-
----
-layout: top-title
-color: sky
-align: c
-title: GPU硬件资源层级对应关系
----
-
-:: title ::
-
-# <mdi-book-open-variant /> GPU硬件资源层级对应关系
-
-:: content ::
-| 概念    | 学校类比             | 描述                                                                 |
-|---------|----------------------|----------------------------------------------------------------------|
-| SM（流处理器单元）      | 教学楼的楼层         | 实际存在的硬件单元，可同时容纳多个班级（Block）                    |
-| SP（流处理器核心）      | 学生（硬件级）       | 每个 Thread 分配到一个实际 SP 来执行                                |
-| ==Rigister（寄存器）==  | 课桌                 | 每个 Thread/SP 独立的存储空间                                       |
-| ==Shared Memory（共享内存）== | 教学楼公共空间  | 仅限同楼层内（同 SM）的线程共享访问                                 |
-| ==Global Memory（全局内存）== | 操场/食堂等全校区域 | 所有 Grid 和 Block 都能访问的全局内存                               |
-
-<AdmonitionType type='important' >
-- Rigister的特点决定我们不能在线程之间通过普通变量“传值”或共享状态<br>
-- Shared Memory只能在Block内用，常用来制作高斯模糊、Sobel边缘检测等<br>
-- ComputeShader中的`RWTexture`, `ComputeBuffer` 存放在Global Memory
-</AdmonitionType>
-
----
-layout: side-title
-side: l
-color: sky
-titlewidth: is-5
-align: rm-lm
-title: Block数量设置详解
----
-
-:: title ::
-
-# <mdi-book-open-variant /> Block数量设置详解
-
-:: content ::
-
-
-<img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/X%E7%BA%BF%E7%A8%8B%E7%BB%84.png?imageSlim" alt="一维线程组" style="width: 25%;" />
-
-```c
-numthreads(32,1,1)
-```
-
-- 一维线程组：多用来处理数组，绘制粒子。
-
-
-<img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/XY%E7%BA%BF%E7%A8%8B%E7%BB%84.png?imageSlim" alt="二维线程组" style="width: 25%;" />
-
-```c
-numthreads(8,8,1)
-```
-
-- 二维线程组：二维线程组多用来渲染RT，处理图像。
-
-<img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/XYZ%E7%BA%BF%E7%A8%8B%E7%BB%84.png?imageSlim" alt="二维线程组" style="width: 25%;" />
-
-```c
-numthreads(4,4,4)
-```
-
-- 三维线程组：三维线程组常用来处理顶点，体积数据，体渲染等。
 
 ---
 layout: top-title-two-cols
-color: sky
+color: yellow
 columns: is-one-half
 align: c-lt-lt
-title: ComputeShader与Shader
+title: 问题：如何高效的绘制200颗陨石？
 ---
-
 :: title ::
-
-# <mdi-book-open-variant /> ComputeShader与Shader异同
-
+# <mdi-help-circle /> 问题：如何高效的绘制200颗个陨石？
 
 :: left ::
-## Shader
-<img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/%E4%B8%80%E8%88%AC%E6%B8%B2%E6%9F%93%E7%AE%A1%E7%BA%BF.png?imageSlim" alt="一般流水线" style="width: 70%;" />
+## 问题拆解
+- 1万颗陨石能够有不同的位移，大小，旋转
+- 不能制造出性能灾难
 
-### VertexShader
-- 输入：顶点数据（位置、UV、法线等）
-- 输出：裁剪空间坐标、顶点相关数据
-
-### FragmentShader
-- 输入：顶点数据（位置、UV、法线等）
-- 输出：像素颜色或深度值
+<div class="ns-c-iconlink">
+  <a href="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/PPT_watermark_2048x2048.png?imageSlim" target="_blank">
+    <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/PPT_watermark_2048x2048.png?imageSlim"
+         alt="icon" class="w-[60px] h-[60px]" />
+  </a>
+</div>
 
 
 :: right ::
-## ComputeShader
-![ComputeShader输入输出](https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/ComputeShader%E7%9A%84%E8%BE%93%E5%85%A5%E8%BE%93%E5%87%BA.png?imageSlim)
-- 输入：常量，只读型Buffer，只读型纹理，可读写的纹理
-- 输出：可读写纹理，可读写Buffer
+<div class="flex flex-col items-center w-[100%]">
+  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/meteor.png?imageSlim" 
+        style="width: 100%;"
+        alt="Indirect"
+        class="rounded-md shadow-md border border-gray-200 mb-2" />
+  <div class="text-gray-600"></div>
+</div>
 
----
-layout: top-title
-color: sky
-align: c
-title: Kernel的含义
----
-
-:: title ::
-# <mdi-book-open-variant /> Kernel的含义
-
-:: content ::
-- Kernel 就是 GPU 可以被调度执行的一段入口函数
-- 脚本用FindKernel()拿到句柄、绑资源，再用Dispatch()触发它在GPU上并行运行。
-- 不同 kernel 可以有不同线程组规模和用途，让同一个 Compute Shader 文件既能做清屏，也能画钻石粒子。
-```csharp {1-2|6|10|12|all}{maxHeight:'120px'}
-int diomondsHandle;
-int clearHandle;
-
-...
-
-diomondsHandle = shader.FindKernel("Diomonds");
-
-...
-
-shader.Dispatch(clearHandle, texResolution / 8, texResolution / 8, 1);
-...
-shader.Dispatch(diomondsHandle, count, 1, 1);
-```
-
-```csharp {1-2|4-8|10-14|all}{maxHeight:'120px'}
-#pragma kernel Diomonds
-#pragma kernel Clear
-
-[numthreads(32,1,1)]
-void Diomonds (uint3 id : SV_DispatchThreadID)
-{
-    ...
-}
-
-[numthreads(8,8,1)]
-void Clear (uint3 id : SV_DispatchThreadID)
-{
-	...
-}
-```
 
 
 ---
 layout: section
-color: indigo
-title: 2. Buffer设置
+color: sky
+title: 1. GPU Instance简介
 ---
 
-# 2. Buffer设置
+#  1. `GPU Instance`简介
 <hr>
-构建结构体数组，建立，填充，传递与释放Buffer
+高性能绘制大量相同物体的强大的方法
 
 
 ---
 layout: top-title
 color: sky
 align: c
-title: Buffers的使用流程
+title: 介绍三种绘制陨石的方法
 ---
 
 :: title ::
 
-# <mdi-book-open-variant /> Buffers的使用流程
+# <mdi-book-open-variant /> 介绍三种绘制陨石的方法
 
 :: content ::
-```mermaid {theme: 'neutral', scale:0.9}
-graph LR
-A(创建数据数组) --> B(填充数组) --> C(创建一个ComputeBuffer) --> D(复制数组数据到buffer) --> E(传递Buffer到kernel)
-```
-<Mug :size="120" mood="excited" color="#ffe7b5" v-drag="[11,276,131,97]"/>
-<Browser :size="120" mood="blissful" color="#c4e8ff" v-drag="[791,286,131,97]"/>
-<SpeechBubble position="l" color='yellow-light' shape="round" maxWidth="300px" v-drag="[232,249,211,64]">
-什么是Buffer？
-</SpeechBubble>
+<div class="text-sm overflow-x-auto">
 
-<SpeechBubble position="r" color='sky-light' shape="round" maxWidth="300px" v-drag="[464,250,300,196]">
-ComputeBuffer 就是 CPU 与 GPU 相互通信时的“传送带”。本质上是一个可用于读写的数据数组，可以存储任意类型。它的物理位置处在之前提到的共享内存上。
-</SpeechBubble>
+| API | 实例创建 | Draw Call | 数量限制 | 典型用途 |
+|-----|----------|-----------|----------|----------|
+| **Object.Instantiate** | 克隆Prefab | 多次 | 随着数量上升性能大幅度下降 | 少量带脚本物体 |
+| **DrawMeshInstanced­Procedural** | CPU一次DrawCall | 1 次 | CPU传count | 稳定大批粒子、草 |
+| **DrawMeshInstanced­Indirect** | 同上 | 1 次 | GPU更新ArgsBuffer | GPU剔除草海、爆破碎片 |
 
----
-layout: top-title-two-cols
-color: emerald
-columns: is-one-half
-align: c-lt-lt
-title: 创建结构体，数组和Buffer
----
-:: title ::
+</div>
 
-# <mdi-code-braces /> 创建结构体，数组和Buffer
-
-:: left ::
-## C#
-- ==C#脚本==中创建结构体和数组
-
-```csharp {1-6|8|12|all}
-struct Diomonds
-{
-    public Vector2 origin;
-    public Vector2 velocity;
-    public float scale;
-}
-
-Diomonds[] diomondsData;
-
-...
-
-ComputeBuffer buffer;
-```
-:: right ::
-## ComputeShader
-- ==ComputeShader==中的结构体和接收用Buffer
-
-```csharp {1-6|8|all}
-struct diomonds
-{
-	float2 origin;
-	float2 velocity;
-	float scale;
-};
-
-StructuredBuffer<diomonds> diomondsBuffer;
-```
-
-
----
-layout: top-title
-color: emerald
-align: c
-title: 填充数组内容
----
-
-:: title ::
-
-# <mdi-code-braces />填充数组内容
-
-:: content ::
-
-InitData函数中创建结构体和数组
-- 取出<span class="bg-green-100 text-green-500 p-1 pl-3 pr-3 m-1 rounded font-size-5">kernel函数</span>中的x方向的线程组大小乘以count获得最终绘制数量
-- 根据计算出的数量实例化数组
-- for循环遍历数组并填充元素
-
-<AdmonitionType type='tip' >
-kernel Id是指向ComputeShader中的函数ID值，类型为int
-</AdmonitionType>
-
-```csharp {1|3|4-5|6|8-13|14-28|all}{maxHeight:'180px'}
-private void InitData()
-{
-    diomondsHandle = shader.FindKernel("Diomonds");
-    shader.GetKernelThreadGroupSizes(diomondsHandle, out uint threadGroupSizeX, out _, out _);
-    int total = (int)threadGroupSizeX * count;
-    diomondsData = new Diomonds[total];
-
-    float speed = 100f;
-    float halfSpeed = speed * 0.5f;
-    float minScale = 5f;
-    float maxScale = 10f;
-    float scaleRange = maxScale - minScale;
-
-    for (int i = 0; i < total; i++)
-    {
-        Diomonds d = new Diomonds
-        {
-            origin = new Vector2(Random.value * texResolution, Random.value * texResolution),
-            velocity = new Vector2((Random.value * speed) - halfSpeed, (Random.value * speed) - halfSpeed),
-            scale = Random.value * scaleRange + minScale
-        };
-        diomondsData[i] = d;
-    }
-}
-```
----
-layout: top-title
-color: emerald
-align: c
-title: 设置Buffer
----
-:: title ::
-
-# <mdi-code-braces /> 设置Buffer
-
-:: content ::
-- 计算数组元素（每个结构体）大小
-- 实例化ComputeBuffer，传入数组长度，元素大小
-- 将数组数据设置到buffer中
-- 将buffer传递到ComputeShader
-
-```csharp {1|5|6|7|8|9|all}{maxHeight:'150px'}
-    private void InitShader()
-    {
-        if (shader == null || outputTexture == null) return;
-        
-        int stride = (2 + 2 + 1) * 4;
-        if (buffer != null) buffer.Dispose();
-        buffer = new ComputeBuffer(diomondsData.Length, stride);
-        buffer.SetData(diomondsData);
-        shader.SetBuffer(diomondsHandle, "diomondsBuffer", buffer);
-    }
-```
-
-<AdmonitionType type="important" width="700px">
-一个 float 占 4 个字节（bytes） 是因为它使用的是 IEEE 754 单精度浮点数格式（single-precision floating point format），这是现代 GPU 和 CPU 默认使用的标准浮点格式。
-</AdmonitionType>
-
----
-layout: top-title
-color: emerald
-align: c
-title: 释放Buffer
----
-:: title ::
-
-# 释放Buffer
-
-:: content ::
-注意有两个重要的释放内存的时机：
-- 初始化阶段（修改buffer内容时需要删掉旧的，创建新的）
-- 声明周期结束时
-```csharp{1-6|8-11|13-22|all}{maxHeight:'250px'}
-    private void InitShader()
-    {
-        ...
-        if (buffer != null) buffer.Dispose();
-        ...
-    }
-
-    private void OnDestroy()
-    {
-        ReleaseResources();
-    }
-    
-    private void ReleaseResources()
-    {
-        if (buffer != null)
-        {
-            buffer.Dispose();
-            buffer = null;
-        }
-
-        ...
-    }
-
-```
-
-
----
-layout: section
-color: indigo
-title: 3. RenderTexture
----
-
-# 3. RenderTexture设置
-<hr>
-新建RT与设置RT，CS绘制RT，释放RT
-
----
-layout: top-title-two-cols
-color: emerald
-columns: is-5
-align: c-lt-lt
-title: 新建，传递与释放RenderTexture
----
-
-:: title ::
-# <mdi-code-braces /> 新建，传递与释放RenderTexture
-
-:: left ::
-## C#中新建传递释放RT
-- new一个RenderTexture
-- 开启随机写，环绕模式为Repeat，实际创建RT
-- 设置RT到指定kernel中
-- 与buffer类似需要在初始化和生命周期结束时释放
-```csharp {1|4|6|10-16|14|20-32|24-27|28|29|30|31|32|15|40|41|45|53-57|all}{maxHeight:'150px'}
-public class DiomondsController : MonoBehaviour
-{
-    ...
-    public int texResolution = 1024;
-    ...
-    RenderTexture outputTexture;
-
-    ...
-    ...
-    
-    void OnEnable()
-    {
-        ...
-        SetupOutputTexture();
-        InitShader();
-        ...
-    }
-
-    ...
-    ...
-
-    private void SetupOutputTexture()
-    {
-        if (outputTexture != null)
-        {
-            outputTexture.Release();
-        }
-
-        outputTexture = new RenderTexture(texResolution, texResolution, 0);
-        outputTexture.enableRandomWrite = true;
-        outputTexture.wrapMode = TextureWrapMode.Repeat;
-        outputTexture.Create();
-    }
-    ...
-
-
-    private void InitShader()
-    {
-        ...
-        shader.SetTexture(diomondsHandle, "Result", outputTexture);
-        shader.SetTexture(clearHandle, "Result", outputTexture);
-        ...
-
-        ...
-        rend.sharedMaterial.SetTexture("_MainTex", outputTexture);
-        ...
-    }
-
-    private void ReleaseResources()
-    {
-        ...
-
-        if (outputTexture != null)
-        {
-            outputTexture.Release();
-            outputTexture = null;
-        }
-    }
-}
-```
-:: right ::
-## ComputeShader接受并写入RT
-- 使用RWTexture2D来接收脚本设置的RT
-- 使用id索引写入颜色
-
-```csharp {1|14|6|20||all}{maxHeight:'200px'}
-shared RWTexture2D<float4> Result;
-
-void drawDiamondRepeat(int2 center, int size)
-{
-    ...
-	Result[uint2(pos)] = diomondsColor;
-    ...
-}
-
-[numthreads(32,1,1)]
-void Diomonds (uint3 id : SV_DispatchThreadID)
-{
-    ...
-	drawDiamondRepeat( center, scale );
-}
-
-[numthreads(8,8,1)]
-void Clear (uint3 id : SV_DispatchThreadID)
-{
-	Result[id.xy] = clearColor;
-}
-```
-
-
----
-layout: top-title-two-cols
-color: sky
-columns: is-5
-align: c-lt-lt
-title: 绘制RT时的Block（线程组）与纹理
----
-
-:: title ::
-# <mdi-book-open-variant /> 绘制RT时的Block（线程组）与纹理
-
-
-:: left ::
-<script setup>
-const groupSize = 8
-const groupID = { x:0 , y: 0 }
-</script>
-
-一个线程组的线程分布（groupID = (0,0,0)）
-
-<div class="flex flex-col items-center gap-2">
-  <div class="grid grid-cols-8 gap-[1px]">
-    <div
-      v-for="i in groupSize * groupSize"
-      :key="i"
-      class="w-[42px] aspect-square text-[10px] flex items-center justify-center font-mono text-black bg-yellow-200 border border-gray-300"
-    >
-      {{
-        ((i - 1) % groupSize) + groupID.x * groupSize
-      }}, {{
-        (groupSize - 1 - Math.floor((i - 1) / groupSize)) + groupID.y * groupSize
-      }}
+<div class="flex justify-center items-start gap-6 text-center text-[12px]">
+  <div class="flex flex-col items-center w-[30%]">
+    <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/Instanciate.png?imageSlim"
+         alt="Instanciate"
+         class="rounded-md shadow-md border border-gray-200 mb-2" />
+    <div class="text-gray-600">❌ Instantiate: 逐个创建 GameObject
     </div>
   </div>
 
-  <div class="mt-1 text-sm">
-    🟨 当前线程组位置：<strong>groupID = ({{ groupID.x }}, {{ groupID.y }}, 0)</strong>
+  <div class="flex flex-col items-center w-[30%]">
+    <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/Procedual.png?imageSlim"
+         alt="Procedural"
+         class="rounded-md shadow-md border border-gray-200 mb-2" />
+    <div class="text-gray-600">✔️ Procedural: GPU 直接绘制，数量由 CPU 提供</div>
   </div>
 
-  <div class="text-xs text-gray-500 mt-1 text-center leading-tight">
-    每个线程的 <code>SV_DispatchThreadID.xy</code> = 
-    <code>groupID * groupSize + threadID</code>
+  <div class="flex flex-col items-center w-[30%]">
+    <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/Indirect.png?imageSlim"
+         alt="Indirect"
+         class="rounded-md shadow-md border border-gray-200 mb-2" />
+    <div class="text-gray-600">✔️ Indirect: GPU视锥体剔除</div>
   </div>
 </div>
 
-<ArrowDraw color='yellow' v-drag="[406,356,140,52,-6]"/>
+---
+layout: top-title-two-cols
+color: sky
+columns: is-one-half
+align: c-lt-lt
+title: 传统绘制与GPUInstance在数据处理上的对比
+---
+
+:: title ::
+# <mdi-book-open-variant /> 传统绘制与GPUInstance在数据处理上的对比
+
+:: left ::
+### 传统绘制（逐实例 Draw）
+<div class="space-y-2 text-[13px] font-mono">
+  <div class="px-3 py-1 rounded bg-red-50 border border-red-300">for (i = 0; i < N; ++i)</div>
+  <div class="px-3 py-1 rounded bg-red-50 border border-red-300">SetPerObject(i)</div>
+  <div class="px-3 py-1 rounded bg-red-50 border border-red-300">DrawCall()</div>
+  <div class="px-3 py-1 rounded bg-red-100 border border-red-300">CPU循环N次</div>
+</div>
+
+#### 提交时间轴
+<div class="mt-3 flex flex-wrap gap-1">
+  <div v-for="n in 8"
+       class="w-[54px] h-[28px] flex items-center justify-center text-[11px] rounded bg-red-300 text-white">
+    Draw {{n}}
+  </div>
+</div>
+<div class="mt-2 text-xs text-gray-500">
+  ⏱️ *指令提交串行&驱动开销累计*
+</div>
 
 :: right ::
-线程组在纹理中的位置映射
-<div class="flex justify-center">
-  <div
-    class="grid grid-cols-8 grid-rows-8 gap-[1px] bg-gray-700"
-    style="width: 256px; height: 256px"
-  >
-    <div
-      v-for="i in 64"
-      :key="i"
-      class="bg-gray-200 border border-gray-400"
-      :class="{
-        'bg-yellow-300': i === 57  // 左下角第一个 cell（row=8, col=1）
-      }"
-    ></div>
+### Instancing / Indirect（一次批处理）
+<div class="space-y-2 text-[13px] font-mono">
+  <div class="px-3 py-1 rounded bg-emerald-50 border border-emerald-300">Upload Mesh(共享)</div>
+  <div class="px-3 py-1 rounded bg-emerald-50 border border-emerald-300">Upload InstanceBuffer[N]</div>
+  <div class="px-3 py-1 rounded bg-emerald-200 border border-emerald-400">DrawInstanced/Indirect(1 次)</div>
+  <div class="px-3 py-1 rounded bg-emerald-100 border border-emerald-300">GPU内部并行展开N个实例</div>
+</div>
+
+#### 提交时间轴
+<div class="mt-3 flex items-center gap-2">
+  <div class="w-[120px] h-[34px] flex items-center justify-center text-[12px] rounded bg-emerald-500 text-white">
+    单次 Draw
+  </div>
+  <div class="text-2xl">⇒</div>
+  <div class="grid grid-cols-8 gap-[2px]">
+    <div v-for="n in 16"
+         class="w-[18px] h-[18px] rounded bg-emerald-200 border border-emerald-400"></div>
+  </div>
+</div>
+<div class="mt-2 text-xs text-gray-500">
+  ⚡ *一次命令→GPU线程并行消处理实例数据*
+</div>
+
+
+---
+layout: top-title
+color: sky
+align: c
+title: Procedural vs Indirect
+---
+
+:: title ::
+# <mdi-book-open-variant /> Procedural vs Indirect
+
+:: content ::
+虽然二者都是GPUInstance绘制，但是实现方式，用途有一些区别。
+
+<v-clicks at="+0" class="ns-c-fader">
+
+- Procedural（DrawMeshInstancedProcedural）：
+GPU 负责绘制，CPU 直接指定实例数量（count），实例数据通常来自 StructuredBuffer，不支持GPU裁剪。适合==实例数已知、裁剪需求不高==的情况。
+- Indirect（DrawMeshInstancedIndirect）：
+GPU负责绘制，实例数量由GPU决定（如由 ComputeBuffer 裁剪后CopyCount得到）。适合大规模实例、需要==GPU动态剔除==或其他运行时调整的场景。
+
+</v-clicks>
+
+<Box v-drag="[625,347,163,89]" shape='r-d-2-70' color='orange-light' custom='pt-0'>添加</Box>
+
+<div class="grid grid-cols-2 gap-8 text-[12px] font-sans select-none">
+
+  <!-- Procedural -->
+  <div class="space-y-2">
+    <div class="text-center font-bold text-sky-600">Procedural</div>
+    <div class="flex flex-col items-center gap-1 font-mono">
+      <div class="px-2 py-[2px] rounded bg-gray-100 border border-gray-300">CPU: count=N</div>
+      <div class="px-2 py-[2px] rounded bg-sky-100 border border-sky-300">InstanceBuffer(N)</div>
+      <div class="px-2 py-[2px] rounded bg-sky-200 border border-sky-500">DrawProcedural(N)</div>
+      <div class="px-2 py-[2px] rounded bg-emerald-100 border border-emerald-300">GPU 并行 N</div>
+    </div>
+    <div class="text-[10px] text-gray-500 leading-snug">
+      固定 N；剔除需 CPU 改 count
+    </div>
+  </div>
+
+  <!-- Indirect -->
+  <div class="space-y-2">
+    <div class="text-center font-bold text-emerald-600">Indirect</div>
+    <div class="flex flex-col items-center gap-1 font-mono">
+      <div class="px-2 py-[2px] rounded bg-gray-100 border border-gray-300">CPU init</div>
+      <div class="px-2 py-[2px] rounded bg-sky-100 border border-sky-300">InstanceBuffer</div>
+      <div class="px-2 py-[2px] rounded bg-yellow-100 border border-yellow-300">Compute剔除</div>
+      <div class="px-2 py-[2px] rounded bg-purple-100 border border-purple-300">CopyCount→Args</div>
+      <div class="px-2 py-[2px] rounded bg-emerald-200 border border-emerald-500">DrawIndirect(M)</div>
+      <div class="px-2 py-[2px] rounded bg-emerald-100 border border-emerald-300">GPU 并行 M</div>
+    </div>
+    <div class="text-[10px] text-gray-500 leading-snug">
+      M 由 GPU 决定；适合大规模 + 动态剔除
+    </div>
   </div>
 </div>
 
-<div class="text-sm mt-3 text-center text-gray-600">
-  ⬜️ 整张纹理由 8×8 个线程组绘制，<br />
-  🟨 高亮块（黄色）是 <strong>groupID = (0,0)</strong>
+---
+layout: section
+color: emerald
+title: 2. InstancedProcedural解析
+---
+
+# 2. `InstancedProcedural`解析
+<hr>
+设置Computebuffer，CS中计算陨石参数，设置Buffer到材质。
+
+---
+layout: top-title
+color: emerald
+align: c
+title: GPUInstanceProcedrual API
+---
+
+:: title ::
+
+# <mdi-code-braces /> GPUInstanceProcedrual API
+
+
+
+:: content ::
+```csharp {all}{maxHeight:'150px'}
+Graphics.DrawMeshInstancedProcedural(
+  mesh,
+  0, 
+  runtimeMaterial, 
+  new Bounds(Vector3.zero, Vector3.one * 1000f), meteorCount);
+```
+
+| 参数名        | 说明                                                                 |
+|---------------|----------------------------------------------------------------------|
+| `mesh`        | 要绘制的 Mesh                                                        |
+| `submeshIndex`| 要绘制的子网格索引，仅当 Mesh 包含多个材质时适用                     |
+| `material`    | 使用的材质（Material）                                               |
+| `bounds`      | 包围所有实例的包围体（Bounds）                                       |
+| ==count==       | 要绘制的实例数量（instance count）                                   |
+
+
+
+---
+layout: top-title
+color: emerald
+align: c
+title: 构建陨石结构体和buffer
+---
+
+:: title ::
+# <mdi-code-braces /> 构建陨石结构体和buffer
+
+:: content ::
+- C#脚本中：
+```csharp {1-7|9|all}{maxHeight:'120px'}
+    struct Meteor
+    {
+        public Vector3 position;
+        public Vector3 scale;
+        public Vector3 rotation;
+        public float seed;
+    }
+    
+    ComputeBuffer meteorsInputBuffer; 
+```
+
+- ComputeShader中:
+```csharp {1-7|9|all}{maxHeight:'120px'}
+struct Meteor
+{
+    float3 position;
+    float3 scale;
+    float3 rotation;    
+    float seed;
+};
+
+RWStructuredBuffer<Meteor> _meteorsInput;
+```
+
+---
+layout: top-title
+color: emerald
+align: c
+title: Buffer的一生
+---
+
+:: title ::
+
+# <mdi-code-braces />  Buffer的一生
+
+:: content ::
+
+<div class="font-sans text-[13px] select-none">
+  <div class="grid grid-cols-3 gap-4 text-center font-bold mb-2">
+    <div class="text-gray-700">Mono 生命周期</div>
+    <div class="text-sky-600">Buffer 操作</div>
+    <div class="text-gray-400 text-[12px]">说明</div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-4 items-center text-[12px] font-mono mb-1">
+    <div class="bg-gray-100 border px-2 py-[2px]">OnEnable</div>
+    <div class="bg-emerald-100 border border-emerald-400 px-2 py-[2px]">初始化Buffer</div>
+    <div class="text-gray-500">创建ComputeBuffer</div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-4 items-center text-[12px] font-mono mb-1">
+    <div class="bg-gray-100 border px-2 py-[2px]">OnValidate</div>
+    <div class="bg-purple-100 border border-purple-400 px-2 py-[2px]">参数改变触发重新初始化Buffer</div>
+    <div class="text-gray-500"></div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-4 items-center text-[12px] font-mono mb-1">
+    <div class="bg-gray-100 border px-2 py-[2px]">Update</div>
+    <div class="bg-yellow-100 border border-yellow-400 px-2 py-[2px]">更新Buffer，提交绘制命令</div>
+    <div class="text-gray-500">如Dispatch或SetData（在新建Buffer前释放旧Buffer）</div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-4 items-center text-[12px] font-mono">
+    <div class="bg-gray-100 border px-2 py-[2px]">OnDisable/OnDestroy</div>
+    <div class="bg-red-100 border border-red-400 px-2 py-[2px]">释放 Buffer</div>
+    <div class="text-gray-500">Release()防止内存泄漏</div>
+  </div>
 </div>
+
+```csharp {1-7|9|all}{maxHeight:'150px'}
+    void OnEnable()
+    {
+      ...
+
+      AllocateOrResizeAllBuffers();
+
+      ...
+    }
+
+    void OnValidate()
+    {
+      ...
+
+      AllocateOrResizeAllBuffers();
+
+      ...
+    }
+
+    void Update()
+    {
+        ...
+        
+
+        computeShader.SetBuffer(kernelHandle, meteorsInputBufferId, meteorsInputBuffer);
+
+        ...
+
+        computeShader.Dispatch(kernelHandle, dispatchGroupsX, 1, 1);
+        
+        runtimeMaterial.SetBuffer(materialBufferId, meteorsInputBuffer);
+    }
+
+    void OnDisable()
+    {
+        ReleaseBuffer(ref meteorsInputBuffer);
+        ...
+    }
+
+    void AllocateOrResizeAllBuffers()
+    {
+      int stride = sizeof(float) * 10;
+
+      if (meteorsInputBuffer == null || meteorsInputBuffer.count != meteorCount)
+      {
+          ReleaseBuffer(ref meteorsInputBuffer);
+          meteorsInputBuffer = new ComputeBuffer(meteorCount, stride, ComputeBufferType.Structured);
+      }
+
+      ...
+    }
+
+    
+```
+
+---
+layout: top-title-two-cols
+color: emerald
+columns: is-5
+align: c-lt-lt
+title: Shader支持Instance
+---
+:: title ::
+# <mdi-code-braces /> Shader支持Instance
+
+:: left ::
+## InjectPrograms
+- 启用两个实例化渲染的两个关键编译指令
+
+```c {1-6|8|12|all}{maxHeight:'150px'}
+#pragma instancing_options 
+assumeuniformscaling procedural:ConfigureProcedural
+#pragma editor_sync_compilation
+```
+
+<div class="flex flex-col items-center w-[100%]">
+  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/InjectPrograms.png?imageSlim" 
+        style="width: 100%;"
+        alt="Indirect"
+        class="rounded-md shadow-md border border-gray-200 mb-2" />
+  <div class="text-gray-600">InjectPrograms采用String类型</div>
+</div>
+
+:: right ::
+## MeteorInstance
+- 接受从C#脚本中设置的Buffer，提取其中的参数用于渲染
+```csharp {1-6|8|all}{maxHeight:'150px'}
+#if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
+    struct MeteorProps
+    {
+        float3 Position;
+        float3 Scale;
+        float3 Rotation; 
+        float seed;
+    };
+    StructuredBuffer<MeteorProps> _MeteorBuffer;
+#endif
+
+float _seed;
+
+void ConfigureProcedural()
+{
+    #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
+    MeteorProps data = _MeteorBuffer[unity_InstanceID];
+    float3 position = data.Position;
+    float3 scale    = data.Scale;
+    float3 rotation = data.Rotation;
+    float seed = data.seed;
+    #endif
+}
+
+void MeteorInstance_float(float4 inPos, out float4 outPos, out float outSeed)
+{
+    ...
+    outSeed = _seed;
+    outPos = inPos;
+}
+
+void MeteorInstance_half(half4 In, out half4 Out) { Out = In; }
+```
+
+<div class="flex flex-col items-center w-[90%]">
+  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/MeteorInstance.png?imageSlim" 
+        style="width: 70%;"
+        alt="Indirect"
+        class="rounded-md shadow-md border border-gray-200 mb-2" />
+  <div class="text-gray-600">MeteorInstance采用File类型</div>
+</div>
+
+---
+layout: top-title
+color: emerald
+align: c
+title: GPU填充Buffer
+---
+
+:: title ::
+
+# <mdi-code-braces /> GPU填充Buffer
+
+:: content ::
+
+与前一章使用CPU计算数组填充buffer不同，我们在这里使用GPU计算内容填充
+# 思路
+基于id值计算随机位置，旋转，缩放。
+
+
+```csharp {1|3|4-5|6|8-13|14-28|all}{maxHeight:'200px'}
+[numthreads(64,1,1)]
+void MeteorInstancer(uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    if (idx >= _count) return;   // 越界保护
+
+    // 1. 随机正交基
+    float3 sinDir = normalize(hash3(idx) - 0.5);
+    float3 vec    = normalize(hash3(idx + 71.393) - 0.5);
+    float3 cosDir = normalize(cross(sinDir, vec));
+
+    // 2. 时间 & 相位
+    float basePhase  = hash(idx, 11.27) * 6.2831853;
+    float scaledTime = _time * _speed + basePhase;
+
+    // 3. 轨道位置
+    float3 pos = (sinDir * sin(scaledTime) + cosDir * cos(scaledTime)) * _range;
+
+    // 4. 自转
+    float spinSpeed = lerp(2.0, 8.0, hash(idx, 37.21));
+    float angleRad  = scaledTime * spinSpeed;
+    float3 axisAngle = sinDir * angleRad;
+
+    // 5. 缩放
+    float rand01 = hash(idx, 19.87);
+    float s = lerp(_minScale, _maxScale, rand01);
+    float3 scl = float3(s,s,s);
+
+    // 写入全量
+    Meteor m;
+    m.position = pos;
+    m.scale    = scl;
+    m.rotation = axisAngle;
+    m.seed = hash(idx, 37.21);
+    _meteorsInput[idx] = m;
+
+    ...
+    ...
+}
+```
+---
+layout: top-title
+color: emerald
+align: c
+title: 随机正交基坐标系
+---
+:: title ::
+
+# <mdi-code-braces /> 随机正交基坐标系
+
+:: content ::
+
+```csharp {1|2|3|all}{maxHeight:'150px'}
+    float3 sinDir = normalize(hash3(idx) - 0.5);
+    float3 vec    = normalize(hash3(idx + 71.393) - 0.5);
+    float3 cosDir = normalize(cross(sinDir, vec));
+```
+<div class="flex flex-col items-center w-[90%]">
+  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/CrossFunction.png?imageSlim" 
+        style="width: 50%;"
+        alt="Indirect"
+        class="rounded-md shadow-md border border-gray-200 mb-2" />
+  <div class="text-gray-600">叉乘示意图</div>
+</div>
+
+---
+layout: top-title
+color: emerald
+align: c
+title: 轨道位置，旋转，缩放
+---
+:: title ::
+
+# <mdi-code-braces /> 轨道位置，旋转，缩放
+
+:: content ::
+```csharp {1|2|3|all}{maxHeight:'150px'}
+    //  随机正交基
+    float3 sinDir = normalize(hash3(idx) - 0.5);
+    float3 vec    = normalize(hash3(idx + 71.393) - 0.5);
+    float3 cosDir = normalize(cross(sinDir, vec));
+
+    // 时间 & 相位
+    float basePhase  = hash(idx, 11.27) * 6.2831853;
+    float scaledTime = _time * _speed + basePhase;
+
+    // 轨道位置
+    float3 pos = (sinDir * sin(scaledTime) + cosDir * cos(scaledTime)) * _range;
+
+    // 自转
+    float spinSpeed = lerp(2.0, 8.0, hash(idx, 37.21));
+    float angleRad  = scaledTime * spinSpeed;
+    float3 axisAngle = sinDir * angleRad;
+
+    // 缩放
+    float rand01 = hash(idx, 19.87);
+    float s = lerp(_minScale, _maxScale, rand01);
+    float3 scl = float3(s,s,s);
+
+    // 写入Buffer
+    Meteor m;
+    m.position = pos;
+    m.scale    = scl;
+    m.rotation = axisAngle;
+    m.seed = hash(idx, 37.21);
+    _meteorsInput[idx] = m;
+```
+
+<div class="grid grid-cols-2 gap-4 text-sm text-center select-none mt-2">
+  <!-- 平面圆轨道 -->
+  <div>
+    <div class="font-bold text-blue-600 mb-1">
+      固定平面圆轨道<br />
+      <span class="text-[11px] text-gray-500">(x² + y² = r²)</span>
+    </div>
+    <div class="relative h-[150px] w-full flex justify-center items-center">
+      <svg viewBox="0 0 200 200" class="w-[130px] h-[130px] drop-shadow-sm">
+        <circle cx="100" cy="100" r="60" stroke="#4F46E5" stroke-width="2" fill="#93C5FD22" />
+        <line x1="100" y1="100" x2="160" y2="100" stroke="#4F46E5" stroke-width="1" stroke-dasharray="4 2"/>
+        <circle cx="160" cy="100" r="4" fill="#1D4ED8" />
+        <text x="165" y="95" font-size="5" fill="#1D4ED8">pos(t)</text>
+      </svg>
+    </div>
+    <p class="text-[11px] text-gray-500 leading-tight">
+      X-Y平面固定<br />通常用于2D UI / 数学图形
+    </p>
+  </div>
+
+  <!-- 三维轨道 -->
+  <div>
+    <div class="font-bold text-emerald-600 mb-1">
+      三维空间轨道<br />
+      <span class="text-[11px] text-gray-500">(sinDir/cosDir 构造)</span>
+    </div>
+    <div class="relative h-[150px] w-full flex justify-center items-center">
+      <svg viewBox="0 0 200 200" class="w-[140px] h-[140px] drop-shadow-sm">
+        <ellipse cx="100" cy="100" rx="65" ry="35" fill="#34D39922" stroke="#10B981" stroke-width="2"/>
+        <circle cx="135" cy="75" r="4" fill="#059669" />
+        <line x1="100" y1="100" x2="135" y2="75" stroke="#10B981" stroke-width="1" stroke-dasharray="4 2"/>
+        <text x="140" y="70" font-size="5" fill="#059669">pos(t)</text>
+      </svg>
+    </div>
+    <p class="text-[11px] text-gray-500 leading-tight">
+      任意方向平面<br />适合粒子轨道 / GPU 动画
+    </p>
+  </div>
+</div>
+
+---
+layout: top-title
+color: emerald
+align: c
+title: Shader中应用位置，旋转，缩放
+---
+:: title ::
+
+# <mdi-code-braces /> Shader中应用位置，旋转，缩放
+
+:: content ::
+
+```csharp {1|2|3|all}{maxHeight:'150px'}
+void ConfigureProcedural()
+{
+    #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
+    MeteorProps data = _MeteorBuffer[unity_InstanceID];
+
+    float3 position = data.Position;
+    float3 scale    = data.Scale;
+    float3 rotation = data.Rotation; // 假设这里是欧拉角表示 (x,y,z) 对应绕X、Y、Z轴的旋转
+    float seed = data.seed;
+    
+    // 创建旋转矩阵 - 先将欧拉角转换为旋转矩阵
+    // 注意：旋转顺序为 ZYX (绕Z轴旋转，然后Y轴，最后X轴)
+    float3x3 rotX, rotY, rotZ;
+    
+    // 绕X轴旋转
+    float sinX, cosX;
+    sincos(rotation.x, sinX, cosX);
+    rotX = float3x3(
+        1, 0, 0,
+        0, cosX, -sinX,
+        0, sinX, cosX
+    );
+    
+    // 绕Y轴旋转
+    float sinY, cosY;
+    sincos(rotation.y, sinY, cosY);
+    rotY = float3x3(
+        cosY, 0, sinY,
+        0, 1, 0,
+        -sinY, 0, cosY
+    );
+    
+    // 绕Z轴旋转
+    float sinZ, cosZ;
+    sincos(rotation.z, sinZ, cosZ);
+    rotZ = float3x3(
+        cosZ, -sinZ, 0,
+        sinZ, cosZ, 0,
+        0, 0, 1
+    );
+    
+    // 组合旋转矩阵 (Z * Y * X)
+    float3x3 rotationMatrix = mul(rotZ, mul(rotY, rotX));
+    
+    // 创建缩放矩阵
+    float3x3 scaleMatrix = float3x3(
+        scale.x, 0, 0,
+        0, scale.y, 0,
+        0, 0, scale.z
+    );
+    
+    // 创建完整的模型矩阵 (缩放 * 旋转 * 平移)
+    float3x3 modelMatrix3x3 = mul(rotationMatrix, scaleMatrix);
+    
+    // 设置 unity_ObjectToWorld 矩阵
+    unity_ObjectToWorld._11_21_31 = float3(modelMatrix3x3[0][0], modelMatrix3x3[1][0], modelMatrix3x3[2][0]);
+    unity_ObjectToWorld._12_22_32 = float3(modelMatrix3x3[0][1], modelMatrix3x3[1][1], modelMatrix3x3[2][1]);
+    unity_ObjectToWorld._13_23_33 = float3(modelMatrix3x3[0][2], modelMatrix3x3[1][2], modelMatrix3x3[2][2]);
+    unity_ObjectToWorld._14_24_34 = position;
+    unity_ObjectToWorld._44 = 1.0f;
+    #endif
+}
+```
+
+<div style="font-size: 80%">
+
+$$
+M_{\text{local2world}} = 
+\begin{bmatrix}
+s_x \cdot \left( \cos\theta_y\cos\theta_z - \sin\theta_x\sin\theta_y\sin\theta_z \right) & 
+s_y \cdot \left( -\cos\theta_x\sin\theta_z \right) & 
+s_z \cdot \left( \sin\theta_y\cos\theta_z + \sin\theta_x\cos\theta_y\sin\theta_z \right) & 
+t_x \\\\
+s_x \cdot \left( \cos\theta_y\sin\theta_z + \sin\theta_x\sin\theta_y\cos\theta_z \right) & 
+s_y \cdot \left( \cos\theta_x\cos\theta_z \right) & 
+s_z \cdot \left( \sin\theta_y\sin\theta_z - \sin\theta_x\cos\theta_y\cos\theta_z \right) & 
+t_y \\\\
+s_x \cdot \left( -\cos\theta_x\sin\theta_y \right) & 
+s_y \cdot \left( \sin\theta_x \right) & 
+s_z \cdot \left( \cos\theta_x\cos\theta_y \right) & 
+t_z \\\\
+0 & 0 & 0 & 1
+\end{bmatrix}
+$$
+
+</div>
+---
+layout: top-title
+color: emerald
+align: c
+title: 材质开启GPU Instance
+---
+
+:: title ::
+
+# <mdi-code-braces /> 材质开启GPU Instance
+
+:: content ::
+<div class="flex flex-col items-center w-[90%]">
+  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/%E6%9D%90%E8%B4%A8%E6%94%AF%E6%8C%81Instance.png?imageSlim" 
+        style="width: 50%;"
+        alt="Indirect"
+        class="rounded-md shadow-md border border-gray-200 mb-2" />
+  <div class="text-gray-600">Enable GPU Instancing</div>
+</div>
+
+---
+layout: section
+color: emerald
+title: 3. DrawMeshInstanceIndirect实现
+---
+
+# 3. `DrawMeshInstanceIndirect`实现
+<hr>
+在Procedual的基础上加入output buffer，args buffer制作剔除渲染。
+
+---
+layout: top-title
+color: emerald
+align: c
+title: GPUInstanceProcedrual API
+---
+
+:: title ::
+
+# <mdi-code-braces /> GPUInstanceProcedrual API
+
+
+
+:: content ::
+```csharp {all}{maxHeight:'150px'}
+Graphics.DrawMeshInstancedIndirect(
+    mesh,
+    0,
+    runtimeMaterial,
+    new Bounds(Vector3.zero, Vector3.one * 1000f),
+    argsBuffer);
+```
+
+| 参数名           | 说明                                                                 |
+|------------------|----------------------------------------------------------------------|
+| `mesh`           | 要绘制的 Mesh                                                        |
+| `submeshIndex`   | 要绘制的子网格索引，适用于具有多个材质的 Mesh                        |
+| `material`       | 使用的材质（Material）                                               |
+| `bounds`         | 包围所有实例的包围体（Bounds）                                       |
+| ==bufferWithArgs== | 包含绘制实例数量等参数的 GPU 缓冲区（ComputeBuffer 或 GraphicsBuffer） |
+
+
+
+---
+layout: top-title
+color: emerald
+align: c
+title: 添加cullingOutputBuffer
+---
+
+:: title ::
+# <mdi-code-braces /> 添加cullingOutputBuffer
+
+:: content ::
+<AdmonitionType type="note" width="400px" v-drag="[569,140,328,78]">
+argsBuffer是args数组组成的argsData设置的。
+</AdmonitionType>
+
+- cullingOutputBuffer用来存储ComputeShader输出裁剪后的实例数据
+- 这个buffer将替代前面的inputBuffer输入到材质
+- 他的数量会被复制到==argsBuffer==控制实例绘制的数量
+
+```csharp {10|all}{maxHeight:'300px'}
+   struct Meteor
+    {
+        public Vector3 position;
+        public Vector3 scale;
+        public Vector3 rotation;
+        public float seed;
+    }
+    
+    ComputeBuffer meteorsInputBuffer;             
+    ComputeBuffer meteorsCullingOutputBuffer;  
+
+    void OnEnable()
+    {
+        ...
+        AllocateOrResizeAllBuffers();
+        ...
+    }
+
+    void OnValidate()
+    {
+        ...
+        // 尺寸或数量变化时重建
+        if (meteorCount != previousMeteorCount || maxInstanceCount != previousMaxInstance)
+        {
+            AllocateOrResizeAllBuffers();
+            ...
+        }
+    }
+
+    void Update()
+    {
+        ...
+
+        meteorsCullingOutputBuffer.SetCounterValue(0); 
+
+        // 绑定 Buffer
+        computeShader.SetBuffer(kernelHandle, meteorsInputBufferId, meteorsInputBuffer);
+        computeShader.SetBuffer(kernelHandle, meteorsCullingOutputBufferId, meteorsCullingOutputBuffer);
+
+        // Dispatch
+        computeShader.Dispatch(kernelHandle, dispatchGroupsX, 1, 1);
+        ...
+
+        switch (renderMode)
+        {
+            ...
+
+            case RenderMode.DrawIndirect:
+                // 将Append的实际数量写入argsBuffer[1]
+                ComputeBuffer.CopyCount(meteorsCullingOutputBuffer, argsBuffer, sizeof(uint)); 
+                runtimeMaterial.SetBuffer(materialBufferId, meteorsCullingOutputBuffer);
+                Graphics.DrawMeshInstancedIndirect(
+                    mesh, 0, runtimeMaterial,
+                    autoResizeBounds ? drawBounds : new Bounds(Vector3.zero, Vector3.one * 1000f),
+                    argsBuffer);
+                break;
+        }
+    }
+
+    void AllocateOrResizeAllBuffers()
+    {
+        int stride = sizeof(float) * 10;
+
+        if (meteorsInputBuffer == null || meteorsInputBuffer.count != meteorCount)
+        {
+            ReleaseBuffer(ref meteorsInputBuffer);
+            meteorsInputBuffer = new ComputeBuffer(meteorCount, stride, ComputeBufferType.Structured);
+        }
+
+        if (meteorsCullingOutputBuffer == null || meteorsCullingOutputBuffer.count != maxInstanceCount)
+        {
+            ReleaseBuffer(ref meteorsCullingOutputBuffer);
+            meteorsCullingOutputBuffer = new ComputeBuffer(maxInstanceCount, stride, ComputeBufferType.Append);
+        }
+
+        ...
+    }
+    
+```
+
+---
+layout: top-title-two-cols
+color: emerald
+columns: is-5
+align: c-lt-lt
+title: indirectArgs和argsBuffer
+---
+
+:: title ::
+# <mdi-code-braces /> indirectArgs和argsBuffer
+
+:: left ::
+# indirectArgs
+- indirectArgs[0]：每个实例使用的索引数
+- indirectArgs[1]：实例数量，在剔除后从buffer传入
+- indirectArgs[2]：网格索引的起始位置
+- indirectArgs[3]：网格顶点的起始位置
+- indirectArgs[4]：实例的起始ID
+
+```csharp {all}{maxHeight:'100px'}
+if (mesh != null)
+{
+    indirectArgs[0] = (uint)mesh.GetIndexCount(0); 
+    indirectArgs[1] = 0;           
+    indirectArgs[2] = (uint)mesh.GetIndexStart(0);
+    indirectArgs[3] = (uint)mesh.GetBaseVertex(0);
+    indirectArgs[4] = 0;                         
+}
+else
+{
+    for (int i = 0; i < indirectArgs.Length; i++)
+     indirectArgs[i] = 0;
+}
+
+argsBuffer.SetData(indirectArgs);
+```
+
+:: right ::
+# argsBuffer
+
+```csharp {1|all}{maxHeight:'150px'}
+    void OnEnable()
+    {
+      ...
+      AllocateOrResizeAllBuffers();
+      InitArgsBuffer();
+    }
+
+    void OnValidate()
+    {
+        // 尺寸或数量变化时重建
+        if (meteorCount != previousMeteorCount || maxInstanceCount != previousMaxInstance)
+        {
+            AllocateOrResizeAllBuffers();
+            ...
+        }
+    }
+
+    void Update()
+    {
+      ...
+      // 将Append的实际数量写入argsBuffer[1]
+      ComputeBuffer.CopyCount(meteorsCullingOutputBuffer, argsBuffer, sizeof(uint));
+      runtimeMaterial.SetBuffer(materialBufferId, meteorsCullingOutputBuffer);
+      Graphics.DrawMeshInstancedIndirect(
+          mesh, 0, runtimeMaterial,
+          autoResizeBounds ? drawBounds : new Bounds(Vector3.zero, Vector3.one * 1000f),
+          argsBuffer);
+    }
+
+    void AllocateOrResizeAllBuffers()
+    {
+        ...
+        if (argsBuffer == null)
+        {
+            argsBuffer = new ComputeBuffer(1, sizeof(uint) * indirectArgs.Length, ComputeBufferType.IndirectArguments);
+        }
+        ...
+    }
+
+```
 
 ---
 layout: top-title-two-cols
@@ -822,8 +1197,3 @@ title: 参考链接&拓展阅读
 - [Compute Shaders Rendering One Million Cubes](https://catlikecoding.com/unity/tutorials/basics/compute-shaders/)
 
 - [ComputeShaderLesson-1工程源码](https://github.com/PavelPeng7/ComputeShaderStudy-Lesson1.git)
-
-
-
-
-
