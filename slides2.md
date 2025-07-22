@@ -21,15 +21,14 @@ layout: top-title-two-cols
 color: yellow
 columns: is-one-half
 align: c-lt-lt
-title: 问题：如何高效的绘制200颗陨石？
+title: 问题：如何高效的绘制大量陨石？
 ---
 :: title ::
-# <mdi-help-circle /> 问题：如何高效的绘制200颗个陨石？
+# <mdi-help-circle /> 问题：如何高效的绘制大量陨石？
 
 :: left ::
-## 问题拆解
-- 1万颗陨石能够有不同的位移，大小，旋转
-- 不能制造出性能灾难
+- 陨石能够有不同的位移，大小，旋转
+- 陨石沿着一定轨道运动，不同陨石有材质变化
 
 <div class="ns-c-iconlink">
   <a href="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/PPT_watermark_2048x2048.png?imageSlim" target="_blank">
@@ -298,6 +297,9 @@ struct Meteor
 
 RWStructuredBuffer<Meteor> _meteorsInput;
 ```
+<Admonition title="Info" color='teal-light' width="500px">
+MeteorBuffer的大小计算：(10 x 4字节 x 200个实例) / 1024 = 7.8kb
+</Admonition>
 
 ---
 layout: top-title
@@ -344,7 +346,7 @@ title: Buffer的一生
   </div>
 </div>
 
-```csharp {1-7|9|all}{maxHeight:'150px'}
+```csharp {1-8|10-17|19|24|28|30|33-37|39|41|43-47|all}{maxHeight:'200px'}
     void OnEnable()
     {
       ...
@@ -395,8 +397,6 @@ title: Buffer的一生
 
       ...
     }
-
-    
 ```
 
 ---
@@ -430,7 +430,7 @@ assumeuniformscaling procedural:ConfigureProcedural
 :: right ::
 ## MeteorInstance
 - 接受从C#脚本中设置的Buffer，提取其中的参数用于渲染
-```csharp {1-6|8|all}{maxHeight:'150px'}
+```csharp {1-10|14-23|17|18-21|25-30|32|all}{maxHeight:'150px'}
 #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
     struct MeteorProps
     {
@@ -486,39 +486,16 @@ title: GPU填充Buffer
 
 :: content ::
 
-与前一章使用CPU计算数组填充buffer不同，我们在这里使用GPU计算内容填充
-# 思路
-基于id值计算随机位置，旋转，缩放。
+与前一章使用CPU计算数组填充buffer不同，我们在这里使用GPU计算内容填充。<br>
 
-
-```csharp {1|3|4-5|6|8-13|14-28|all}{maxHeight:'200px'}
+```csharp {1|5|10-13|14|15|all}{maxHeight:'200px'}
 [numthreads(64,1,1)]
 void MeteorInstancer(uint3 id : SV_DispatchThreadID)
 {
     uint idx = id.x;
     if (idx >= _count) return;   // 越界保护
 
-    // 1. 随机正交基
-    float3 sinDir = normalize(hash3(idx) - 0.5);
-    float3 vec    = normalize(hash3(idx + 71.393) - 0.5);
-    float3 cosDir = normalize(cross(sinDir, vec));
-
-    // 2. 时间 & 相位
-    float basePhase  = hash(idx, 11.27) * 6.2831853;
-    float scaledTime = _time * _speed + basePhase;
-
-    // 3. 轨道位置
-    float3 pos = (sinDir * sin(scaledTime) + cosDir * cos(scaledTime)) * _range;
-
-    // 4. 自转
-    float spinSpeed = lerp(2.0, 8.0, hash(idx, 37.21));
-    float angleRad  = scaledTime * spinSpeed;
-    float3 axisAngle = sinDir * angleRad;
-
-    // 5. 缩放
-    float rand01 = hash(idx, 19.87);
-    float s = lerp(_minScale, _maxScale, rand01);
-    float3 scl = float3(s,s,s);
+    ...
 
     // 写入全量
     Meteor m;
@@ -543,11 +520,11 @@ title: 随机正交基坐标系
 # <mdi-code-braces /> 随机正交基坐标系
 
 :: content ::
-
+为每个实例生成一个局部坐标系，特别是在 GPU 实例化中非常常见，用于控制旋转方向或运动路径。
 ```csharp {1|2|3|all}{maxHeight:'150px'}
-    float3 sinDir = normalize(hash3(idx) - 0.5);
-    float3 vec    = normalize(hash3(idx + 71.393) - 0.5);
-    float3 cosDir = normalize(cross(sinDir, vec));
+float3 sinDir = normalize(hash3(idx) - 0.5);
+float3 vec    = normalize(hash3(idx + 71.393) - 0.5);
+float3 cosDir = normalize(cross(sinDir, vec));
 ```
 <div class="flex flex-col items-center w-[90%]">
   <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/CrossFunction.png?imageSlim" 
@@ -568,7 +545,8 @@ title: 轨道位置，旋转，缩放
 # <mdi-code-braces /> 轨道位置，旋转，缩放
 
 :: content ::
-```csharp {1|2|3|all}{maxHeight:'150px'}
+
+```csharp {1-4|6-8|10-11|13-16|18-21|23-28|29|all}{maxHeight:'150px'}
     //  随机正交基
     float3 sinDir = normalize(hash3(idx) - 0.5);
     float3 vec    = normalize(hash3(idx + 71.393) - 0.5);
@@ -773,14 +751,12 @@ title: 3. DrawMeshInstanceIndirect实现
 layout: top-title
 color: emerald
 align: c
-title: GPUInstanceProcedrual API
+title: DrawMeshInstanceIndirect API
 ---
 
 :: title ::
 
-# <mdi-code-braces /> GPUInstanceProcedrual API
-
-
+# <mdi-code-braces /> DrawMeshInstanceProcedual API
 
 :: content ::
 ```csharp {all}{maxHeight:'150px'}
@@ -941,6 +917,10 @@ argsBuffer.SetData(indirectArgs);
 
 :: right ::
 # argsBuffer
+- argsBuffer是传递给GPU的绘制参数缓冲区<br>
+- 控制DrawMeshInstancedIndirect()的<br>
+索引数、实例数量、起始索引和偏移量等关键信息。<br>
+- 由CPU初始化，运行时由ComputeShader动态更新实例数量。
 
 ```csharp {1|all}{maxHeight:'150px'}
     void OnEnable()
@@ -981,165 +961,110 @@ argsBuffer.SetData(indirectArgs);
         }
         ...
     }
-
 ```
+
+
 
 ---
 layout: top-title-two-cols
 color: emerald
 columns: is-7
 align: c-lt-lt
-title: drawDiamondRepeat函数解析
+title: ComputeShader执行视锥体剔除
 ---
 
 :: title ::
 
-# <mdi-code-braces /> drawDiamondRepeat函数解析
+# <mdi-code-braces /> ComputeShader执行视锥体剔除
 
-:: right ::
-### drawDiamondRepeat原理示意（size = 2）
-
-<div class="flex justify-center mt-4">
-  <div class="grid grid-cols-5 gap-[2px] bg-gray-100 p-2 rounded shadow">
-    <div v-for="(row, rowIndex) in 5" :key="rowIndex" class="contents">
-      <div
-        v-for="(col, colIndex) in 5"
-        :key="colIndex"
-        class="w-[32px] h-[32px] flex items-center justify-center text-sm font-mono border border-gray-300"
-        :class="{
-          'bg-blue-300': Math.abs(2 - rowIndex) + Math.abs(2 - colIndex) <= 2,
-          'bg-yellow-300 font-bold': rowIndex === 2 && colIndex === 2
-        }"
-      >
-        {{
-          rowIndex === 2 && colIndex === 2
-            ? 'C'
-            : Math.abs(2 - rowIndex) + Math.abs(2 - colIndex) <= 2
-              ? 'X'
-              : ''
-        }}
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="mt-4 text-center text-sm text-gray-600">
-  使用钻石中心点 <strong>C</strong> 和半径 <code>size = 2</code><br>
-  绘制出对称的钻石区域，蓝色表示被绘制的像素点 <strong>X</strong>
-</div>
 :: left ::
-- 在y方向上遍历从-size开始到size，记录下左右扩张的范围span
-- 在x方向上遍历从-span到span，填充对应位置的颜色
-```csharp {3|4|5-12|all}
-void drawDiamondRepeat(int2 center, int size)
+- 传递透视投影矩阵，相机位置，相机朝向，FOV角度，最大渲染距离
+```csharp {1|2|3|all}{maxHeight:'150px'}
+        if (mainCamera != null)
+        {
+            var V  = mainCamera.worldToCameraMatrix;
+            var P  = GL.GetGPUProjectionMatrix(mainCamera.projectionMatrix, false);
+            var VP = P * V;
+
+            computeShader.SetMatrix("_VP", VP);
+            computeShader.SetVector(cameraPosId, mainCamera.transform.position);
+            computeShader.SetVector(cameraDirId, mainCamera.transform.forward.normalized);
+            computeShader.SetFloat(cameraHalfFovId, mainCamera.fieldOfView * 0.5f);
+            Shader.SetGlobalFloat(maxViewDistanceId, maxViewDistance);
+        }
+```
+
+- 将陨石位置转换到裁剪空间中，根据裁剪空间坐标的w值进行最大距离裁剪
+- 再转换到NDC空间中进行裁剪
+```csharp {1|2|3|all}{maxHeight:'150px'}
+[numthreads(64,1,1)]
+void MeteorInstancer(uint3 id : SV_DispatchThreadID)
 {
-	for (int y = -size; y <= size; y++) {
-		int span = size - abs(y);
-		for (int x = -span; x <= span; x++) {
-			int2 pos = center + int2(x, y);
+    ...
 
-			...
+    // 若无需裁剪直接 Append
+    if (_doNotCulling)
+    {
+        _meteorsCullingOutput.Append(m);
+        return;
+    }
 
-			Result[uint2(pos)] = diomondsColor;
-		}
-	}
+    // ---------- 视锥体裁剪(VP → Clip → NDC) ----------
+    float4 clip = mul(_VP, float4(pos, 1.0));
+    if(clip.w > _maxViewDistance)
+        return;
+    
+    float3 ndc = clip.xyz / clip.w;   // NDC 坐标
+    float ndcSize = 1.5;
+
+    // Unity（D3D/Metal/Vulkan）NDC: x,y ∈ [-1,1]  z ∈ [0,1]
+    if (abs(ndc.x) > ndcSize || abs(ndc.y) > ndcSize || ndc.z < 0 || ndc.z > ndcSize)
+        return;
+    _meteorsCullingOutput.Append(m);
 }
 ```
 
+:: right ::
+<div class="flex flex-col items-center w-[120%]">
+  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/%E8%A3%81%E5%89%AA%E7%A9%BA%E9%97%B4%E7%A4%BA%E6%84%8F%E5%9B%BE.jpeg?imageSlim" 
+        style="width: 100%;"
+        alt="Indirect"
+        class="rounded-md shadow-md border border-gray-200 mb-2" />
+  <div class="text-gray-600">裁剪空间</div>
+</div>
+
+
+
 
 ---
-layout: top-title-two-cols
+layout: top-title
 color: emerald
-columns: is-2
-align: c-lt-lt
-title: warpPos函数解析
+align: c
+title: 绘制剔除后的结果
 ---
 :: title ::
 
-# <mdi-code-braces /> warpPos函数解析
+# <mdi-code-braces /> 绘制剔除后的结果
 
-:: right ::
-
-<script setup>
-const texResolution = 4
-// 横轴显示 -1 到 4
-const labels = [-1, 0, 1, 2, 3, 4]
-// 要演示的输入点
-const inputs = [-1, 4]
-// wrapPos 映射后的输出点
-const outputs = inputs.map(x => (x % texResolution + texResolution) % texResolution)
-</script>
-
-### wrapPos 映射演示
-
-<div class="flex flex-col items-center mt-4 space-y-2">
-  <!-- 输入点（红色圆点在坐标轴上方） -->
-  <div class="relative w-full max-w-lg">
-    <!-- 轴线 -->
-    <div class="absolute inset-x-0 top-1/2 border-t border-gray-400"></div>
-    <!-- 刻度与红点 -->
-    <div class="grid grid-cols-6 relative">
-      <div
-        v-for="(lbl, i) in labels"
-        :key="i"
-        class="flex flex-col items-center"
-      >
-        <div
-          v-if="inputs.includes(lbl)"
-          class="w-4 h-4 bg-red-400 rounded-full mb-1"
-        ></div>
-        <div class="text-sm">{{ lbl }}</div>
-      </div>
-    </div>
-  </div>
-  <div class="text-gray-600 text-sm">输入越界点</div>
-
-  <!-- 公式 -->
-  <div class="text-gray-700 text-sm">
-    wrapPos(x) = (<code>x % {{texResolution}} + {{texResolution}}</code>) % {{texResolution}}
-  </div>
-
-  <!-- 输出点（绿色圆点在坐标轴下方） -->
-  <div class="relative w-full max-w-lg">
-    <div class="absolute inset-x-0 top-1/2 border-t border-gray-400"></div>
-    <div class="grid grid-cols-6 relative">
-      <div
-        v-for="(lbl, i) in labels"
-        :key="i"
-        class="flex flex-col items-center"
-      >
-        <div class="mb-1 h-4">
-          <div
-            v-if="outputs.includes(lbl)"
-            class="w-4 h-4 bg-green-300 rounded-full"
-          ></div>
-        </div>
-        <div class="text-sm">{{ lbl }}</div>
-      </div>
-    </div>
-  </div>
-  <div class="text-gray-600 text-sm">映射后结果</div>
-</div>
-
-:: left ::
-
-这个函数用来实现对输入的位置进行Repeat类型的Wrap操作，主要用在两个地方
-
-- 钻石中心位置的Repeat
-
-- 绘制钻石像素时对填充像素位置的Repeat
+:: content ::
 
 ```c
-float2 warpPos(float2 origin)
-{
-	return float2((origin.x % texResolution + texResolution) % texResolution,
-				  (origin.y % texResolution + texResolution) % texResolution);
-}
+// 将 Append 的实际数量写入 argsBuffer[1]
+ComputeBuffer.CopyCount(meteorsCullingOutputBuffer, argsBuffer, sizeof(uint)); // [MOD] 写 instanceCount
+runtimeMaterial.SetBuffer(materialBufferId, meteorsCullingOutputBuffer);
+Graphics.DrawMeshInstancedIndirect(
+    mesh, 0, runtimeMaterial,
+    autoResizeBounds ? drawBounds : new Bounds(Vector3.zero, Vector3.one * 1000f),
+    argsBuffer);
 ```
 
-<AdmonitionType type="tip" width="500px">
-取两次余是为了处理负值的Wrap，例如如果pos的x=-1，texResolution = 4，通过除以纹理大小取余再加上纹理大小转换成向正方向越界的等效值。
-</AdmonitionType>
+<div class="flex flex-col items-center w-[100%]">
+  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/%E5%89%94%E9%99%A4%E5%B1%95%E7%A4%BA.png?imageSlim" 
+        style="width: 40%;"
+        alt="Indirect"
+        class="rounded-md shadow-md border border-gray-200 mb-2" />
+  <div class="text-gray-600">裁剪后的陨石群</div>
+</div>
 
 ---
 layout: top-title
