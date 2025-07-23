@@ -62,13 +62,14 @@ title: GPU软件抽象层级对应关系
 |---------|------------------|--------------------------------------------------------------|
 | Grid（网格）    | 年级             | 年级包含多个班级（Block），是任务调度的最高抽象层         |
 | Block（线程组）   | 班级             | 每个班级由多个学生组成，独立执行任务                       |
-| Warp（线程束）    | 兴趣小组         | 每组固定32人，执行相同任务；人数不够也会补齐               |
+| Warp（线程束）    | 兴趣小组         | 每组固定64人，执行相同任务；人数不够也会补齐               |
 | Thread（线程）  | 学生             | 每个 Thread 是最小执行单元，有自己的寄存器（课桌）         |
 
 <AdmonitionType type='important' >
 - 在ComputeShader中Grid通过Dispatch(x,y,z)分配 <br>
 - Block在ComputeShader中设置[numthreads(x,y,z)]<br>
-- 受Wrap的结构影响Block大小通常为32的倍数
+- 受Wrap的结构影响Block大小通常为32的倍数(修改)
+- 在Nvidia中一个wrap包含32个线程，在Amd中则是64个，所以线程组的尺寸最好是64的整数倍可以避免资源浪费。
 </AdmonitionType>
 
 ---
