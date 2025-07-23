@@ -30,13 +30,6 @@ title: 问题：如何高效的绘制大量陨石？
 - 陨石能够有不同的位移，大小，旋转
 - 陨石沿着一定轨道运动，不同陨石有材质变化
 
-<div class="ns-c-iconlink">
-  <a href="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/PPT_watermark_2048x2048.png?imageSlim" target="_blank">
-    <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/PPT_watermark_2048x2048.png?imageSlim"
-         alt="icon" class="w-[60px] h-[60px]" />
-  </a>
-</div>
-
 
 :: right ::
 <div class="flex flex-col items-center w-[100%]">
@@ -52,10 +45,10 @@ title: 问题：如何高效的绘制大量陨石？
 ---
 layout: section
 color: sky
-title: 1. GPU Instance简介
+title: 1. GPU Instance介绍
 ---
 
-#  1. `GPU Instance`简介
+#  1. `GPU Instance`介绍
 <hr>
 高性能绘制大量相同物体的强大的方法
 
@@ -87,7 +80,7 @@ title: 介绍三种绘制陨石的方法
     <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/Instanciate.png?imageSlim"
          alt="Instanciate"
          class="rounded-md shadow-md border border-gray-200 mb-2" />
-    <div class="text-gray-600">❌ Instantiate: 逐个创建 GameObject
+    <div class="text-gray-600">Instantiate: 逐个创建 GameObject
     </div>
   </div>
 
@@ -95,14 +88,14 @@ title: 介绍三种绘制陨石的方法
     <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/Procedual.png?imageSlim"
          alt="Procedural"
          class="rounded-md shadow-md border border-gray-200 mb-2" />
-    <div class="text-gray-600">✔️ Procedural: GPU 直接绘制，数量由 CPU 提供</div>
+    <div class="text-gray-600">Procedural: GPU 直接绘制，数量由 CPU 提供</div>
   </div>
 
   <div class="flex flex-col items-center w-[30%]">
     <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/Indirect.png?imageSlim"
          alt="Indirect"
          class="rounded-md shadow-md border border-gray-200 mb-2" />
-    <div class="text-gray-600">✔️ Indirect: GPU视锥体剔除</div>
+    <div class="text-gray-600">Indirect: GPU视锥体剔除</div>
   </div>
 </div>
 
@@ -192,10 +185,10 @@ GPU负责绘制，实例数量由GPU决定（如由 ComputeBuffer 裁剪后CopyC
   <div class="space-y-2">
     <div class="text-center font-bold text-sky-600">Procedural</div>
     <div class="flex flex-col items-center gap-1 font-mono">
-      <div class="px-2 py-[2px] rounded bg-gray-100 border border-gray-300">CPU: count=N</div>
+      <div class="px-2 py-[2px] rounded bg-gray-100 border border-gray-300">CPU: count = N</div>
       <div class="px-2 py-[2px] rounded bg-sky-100 border border-sky-300">InstanceBuffer(N)</div>
       <div class="px-2 py-[2px] rounded bg-sky-200 border border-sky-500">DrawProcedural(N)</div>
-      <div class="px-2 py-[2px] rounded bg-emerald-100 border border-emerald-300">GPU 并行 N</div>
+      <div class="px-2 py-[2px] rounded bg-emerald-100 border border-emerald-300">GPU并行 N</div>
     </div>
     <div class="text-[10px] text-gray-500 leading-snug">
       固定 N；剔除需 CPU 改 count
@@ -211,7 +204,7 @@ GPU负责绘制，实例数量由GPU决定（如由 ComputeBuffer 裁剪后CopyC
       <div class="px-2 py-[2px] rounded bg-yellow-100 border border-yellow-300">Compute剔除</div>
       <div class="px-2 py-[2px] rounded bg-purple-100 border border-purple-300">CopyCount→Args</div>
       <div class="px-2 py-[2px] rounded bg-emerald-200 border border-emerald-500">DrawIndirect(M)</div>
-      <div class="px-2 py-[2px] rounded bg-emerald-100 border border-emerald-300">GPU 并行 M</div>
+      <div class="px-2 py-[2px] rounded bg-emerald-100 border border-emerald-300">GPU并行 M</div>
     </div>
     <div class="text-[10px] text-gray-500 leading-snug">
       M 由 GPU 决定；适合大规模 + 动态剔除
@@ -297,9 +290,9 @@ struct Meteor
 
 RWStructuredBuffer<Meteor> _meteorsInput;
 ```
-<Admonition title="Info" color='teal-light' width="500px">
+<AdmonitionType type="tip" width="500px">
 MeteorBuffer的大小计算：(10 x 4字节 x 200个实例) / 1024 = 7.8kb
-</Admonition>
+</AdmonitionType>
 
 ---
 layout: top-title
@@ -400,89 +393,15 @@ title: Buffer的一生
 ```
 
 ---
-layout: top-title-two-cols
-color: emerald
-columns: is-5
-align: c-lt-lt
-title: Shader支持Instance
----
-:: title ::
-# <mdi-code-braces /> Shader支持Instance
-
-:: left ::
-## InjectPrograms
-- 启用两个实例化渲染的两个关键编译指令
-
-```c {1-6|8|12|all}{maxHeight:'150px'}
-#pragma instancing_options 
-assumeuniformscaling procedural:ConfigureProcedural
-#pragma editor_sync_compilation
-```
-
-<div class="flex flex-col items-center w-[100%]">
-  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/InjectPrograms.png?imageSlim" 
-        style="width: 100%;"
-        alt="Indirect"
-        class="rounded-md shadow-md border border-gray-200 mb-2" />
-  <div class="text-gray-600">InjectPrograms采用String类型</div>
-</div>
-
-:: right ::
-## MeteorInstance
-- 接受从C#脚本中设置的Buffer，提取其中的参数用于渲染
-```csharp {1-10|14-23|17|18-21|25-30|32|all}{maxHeight:'150px'}
-#if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
-    struct MeteorProps
-    {
-        float3 Position;
-        float3 Scale;
-        float3 Rotation; 
-        float seed;
-    };
-    StructuredBuffer<MeteorProps> _MeteorBuffer;
-#endif
-
-float _seed;
-
-void ConfigureProcedural()
-{
-    #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
-    MeteorProps data = _MeteorBuffer[unity_InstanceID];
-    float3 position = data.Position;
-    float3 scale    = data.Scale;
-    float3 rotation = data.Rotation;
-    float seed = data.seed;
-    #endif
-}
-
-void MeteorInstance_float(float4 inPos, out float4 outPos, out float outSeed)
-{
-    ...
-    outSeed = _seed;
-    outPos = inPos;
-}
-
-void MeteorInstance_half(half4 In, out half4 Out) { Out = In; }
-```
-
-<div class="flex flex-col items-center w-[90%]">
-  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/MeteorInstance.png?imageSlim" 
-        style="width: 70%;"
-        alt="Indirect"
-        class="rounded-md shadow-md border border-gray-200 mb-2" />
-  <div class="text-gray-600">MeteorInstance采用File类型</div>
-</div>
-
----
 layout: top-title
 color: emerald
 align: c
-title: GPU填充Buffer
+title: ComputeShader填充Buffer
 ---
 
 :: title ::
 
-# <mdi-code-braces /> GPU填充Buffer
+# <mdi-code-braces /> ComputeShader填充Buffer
 
 :: content ::
 
@@ -508,6 +427,24 @@ void MeteorInstancer(uint3 id : SV_DispatchThreadID)
     ...
     ...
 }
+```
+
+```mermaid {theme: 'neutral', scale:0.55}
+graph LR
+  Start[选择数据生成方式]:::meta --> Choice{由谁填充 Buffer?}:::meta
+
+  Choice -->|CPU 填充| CPU1[创建数据数组]:::cpu 
+  CPU1 --> CPU2[计算数组元素]:::cpu 
+  CPU2 --> CPU3[填充，传递Buffer]:::cpu
+  CPU3 --> CPU4[ComputeShader绘制]:::cpu 
+
+  Choice -->|GPU 填充| GPU1[传递固定数量空Buffer]:::cpu 
+  GPU1 --> GPU2[ComputeShader填充Buffer元素]:::gpu
+  GPU2 --> GPU3[GPUDrawInstance]:::gpu
+
+  classDef cpu fill:#BBDEFB,stroke:#303F9F,stroke-width:1.5,color:#1e293b;
+  classDef gpu fill:#bbf7d0,stroke:#00838F,stroke-width:1.5,color:#065f46;
+  classDef meta fill:#fef9c3,stroke:#eab308,stroke-width:1.5,color:#92400e;
 ```
 ---
 layout: top-title
@@ -618,6 +555,8 @@ title: 轨道位置，旋转，缩放
   </div>
 </div>
 
+
+
 ---
 layout: top-title
 color: emerald
@@ -717,6 +656,106 @@ t_z \\\\
 $$
 
 </div>
+
+---
+layout: top-title
+color: emerald
+align: c
+title: 随机值函数
+---
+
+:: title ::
+
+# <mdi-code-braces /> 随机值函数
+
+
+:: content ::
+```csharp {1|2|3|all}{maxHeight:'150px'}
+float hash(float v, float seed) { return frac(sin(v + seed) * 143758.5453); }
+
+float3 hash3(float v)
+{
+    return float3(
+        hash(v, 3.9812),
+        hash(v, 7.1536),
+        hash(v, 5.7241)
+    );
+}
+```
+---
+layout: top-title-two-cols
+color: emerald
+columns: is-5
+align: c-lt-lt
+title: Shader支持Instance
+---
+:: title ::
+# <mdi-code-braces /> Shader支持Instance
+
+:: left ::
+## InjectPrograms
+- 启用两个实例化渲染的两个关键编译指令
+
+```c {1-6|8|12|all}{maxHeight:'150px'}
+#pragma instancing_options 
+assumeuniformscaling procedural:ConfigureProcedural
+#pragma editor_sync_compilation
+```
+
+<div class="flex flex-col items-center w-[100%]">
+  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/InjectPrograms.png?imageSlim" 
+        style="width: 100%;"
+        alt="Indirect"
+        class="rounded-md shadow-md border border-gray-200 mb-2" />
+  <div class="text-gray-600">InjectPrograms采用String类型</div>
+</div>
+
+:: right ::
+## MeteorInstance
+- 接受从C#脚本中设置的Buffer，提取其中的参数用于渲染
+```csharp {1-10|14-23|17|18-21|25-30|32|all}{maxHeight:'150px'}
+#if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
+    struct MeteorProps
+    {
+        float3 Position;
+        float3 Scale;
+        float3 Rotation; 
+        float seed;
+    };
+    StructuredBuffer<MeteorProps> _MeteorBuffer;
+#endif
+
+float _seed;
+
+void ConfigureProcedural()
+{
+    #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
+    MeteorProps data = _MeteorBuffer[unity_InstanceID];
+    float3 position = data.Position;
+    float3 scale    = data.Scale;
+    float3 rotation = data.Rotation;
+    float seed = data.seed;
+    #endif
+}
+
+void MeteorInstance_float(float4 inPos, out float4 outPos, out float outSeed)
+{
+    ...
+    outSeed = _seed;
+    outPos = inPos;
+}
+
+void MeteorInstance_half(half4 In, out half4 Out) { Out = In; }
+```
+
+<div class="flex flex-col items-center w-[90%]">
+  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/MeteorInstance.png?imageSlim" 
+        style="width: 70%;"
+        alt="Indirect"
+        class="rounded-md shadow-md border border-gray-200 mb-2" />
+  <div class="text-gray-600">MeteorInstance采用File类型</div>
+</div>
+
 ---
 layout: top-title
 color: emerald
@@ -740,10 +779,10 @@ title: 材质开启GPU Instance
 ---
 layout: section
 color: emerald
-title: 3. DrawMeshInstanceIndirect实现
+title: 3. InstanceIndirect解析
 ---
 
-# 3. `DrawMeshInstanceIndirect`实现
+# 3. `InstanceIndirect`解析
 <hr>
 在Procedual的基础上加入output buffer，args buffer制作剔除渲染。
 
@@ -789,7 +828,7 @@ title: 添加cullingOutputBuffer
 # <mdi-code-braces /> 添加cullingOutputBuffer
 
 :: content ::
-<AdmonitionType type="note" width="400px" v-drag="[569,140,328,78]">
+<AdmonitionType type="tip" width="400px" v-drag="[569,140,328,78]">
 argsBuffer是args数组组成的argsData设置的。
 </AdmonitionType>
 
@@ -897,22 +936,32 @@ title: indirectArgs和argsBuffer
 - indirectArgs[3]：网格顶点的起始位置
 - indirectArgs[4]：实例的起始ID
 
-```csharp {all}{maxHeight:'100px'}
-if (mesh != null)
+```csharp {1|4|8|10-17|23|all}{maxHeight:'100px'}
+void OnEnable()
 {
-    indirectArgs[0] = (uint)mesh.GetIndexCount(0); 
-    indirectArgs[1] = 0;           
-    indirectArgs[2] = (uint)mesh.GetIndexStart(0);
-    indirectArgs[3] = (uint)mesh.GetBaseVertex(0);
-    indirectArgs[4] = 0;                         
-}
-else
-{
-    for (int i = 0; i < indirectArgs.Length; i++)
-     indirectArgs[i] = 0;
+    ...
+    InitArgsBuffer();
+    ...
 }
 
-argsBuffer.SetData(indirectArgs);
+void InitArgsBuffer()
+{
+    if (mesh != null)
+    {
+        indirectArgs[0] = (uint)mesh.GetIndexCount(0);
+        indirectArgs[1] = 0;
+        indirectArgs[2] = (uint)mesh.GetIndexStart(0);
+        indirectArgs[3] = (uint)mesh.GetBaseVertex(0);
+        indirectArgs[4] = 0;
+    }
+    else
+    {
+        for (int i = 0; i < indirectArgs.Length; i++)
+        indirectArgs[i] = 0;
+    }
+    argsBuffer.SetData(indirectArgs);
+    ...
+}
 ```
 
 :: right ::
@@ -922,18 +971,21 @@ argsBuffer.SetData(indirectArgs);
 索引数、实例数量、起始索引和偏移量等关键信息。<br>
 - 由CPU初始化，运行时由ComputeShader动态更新实例数量。
 
-```csharp {1|all}{maxHeight:'150px'}
+```csharp {1|4|43-51|8|11-18|43-51|21|25-28|29-32|33-37|all}{maxHeight:'180px'}
     void OnEnable()
     {
       ...
       AllocateOrResizeAllBuffers();
-      InitArgsBuffer();
+      ...
     }
 
     void OnValidate()
     {
         // 尺寸或数量变化时重建
-        if (meteorCount != previousMeteorCount || maxInstanceCount != previousMaxInstance)
+        if (
+        meteorCount != previousMeteorCount
+        || maxInstanceCount != previousMaxInstance
+        )
         {
             AllocateOrResizeAllBuffers();
             ...
@@ -944,11 +996,18 @@ argsBuffer.SetData(indirectArgs);
     {
       ...
       // 将Append的实际数量写入argsBuffer[1]
-      ComputeBuffer.CopyCount(meteorsCullingOutputBuffer, argsBuffer, sizeof(uint));
-      runtimeMaterial.SetBuffer(materialBufferId, meteorsCullingOutputBuffer);
+      ComputeBuffer.CopyCount(
+        meteorsCullingOutputBuffer,
+        argsBuffer,
+        sizeof(uint));
+      runtimeMaterial.SetBuffer(
+        materialBufferId,
+        meteorsCullingOutputBuffer
+      );
       Graphics.DrawMeshInstancedIndirect(
           mesh, 0, runtimeMaterial,
-          autoResizeBounds ? drawBounds : new Bounds(Vector3.zero, Vector3.one * 1000f),
+          autoResizeBounds ? drawBounds :
+          new Bounds(Vector3.zero, Vector3.one * 1000f),
           argsBuffer);
     }
 
@@ -957,7 +1016,12 @@ argsBuffer.SetData(indirectArgs);
         ...
         if (argsBuffer == null)
         {
-            argsBuffer = new ComputeBuffer(1, sizeof(uint) * indirectArgs.Length, ComputeBufferType.IndirectArguments);
+            argsBuffer = 
+            new ComputeBuffer(
+              1, 
+              sizeof(uint) * indirectArgs.Length,
+              ComputeBufferType.IndirectArguments
+              );
         }
         ...
     }
@@ -980,18 +1044,18 @@ title: ComputeShader执行视锥体剔除
 :: left ::
 - 传递透视投影矩阵，相机位置，相机朝向，FOV角度，最大渲染距离
 ```csharp {1|2|3|all}{maxHeight:'150px'}
-        if (mainCamera != null)
-        {
-            var V  = mainCamera.worldToCameraMatrix;
-            var P  = GL.GetGPUProjectionMatrix(mainCamera.projectionMatrix, false);
-            var VP = P * V;
+if (mainCamera != null)
+{
+    var V  = mainCamera.worldToCameraMatrix;
+    var P  = GL.GetGPUProjectionMatrix(mainCamera.projectionMatrix, false);
+    var VP = P * V;
 
-            computeShader.SetMatrix("_VP", VP);
-            computeShader.SetVector(cameraPosId, mainCamera.transform.position);
-            computeShader.SetVector(cameraDirId, mainCamera.transform.forward.normalized);
-            computeShader.SetFloat(cameraHalfFovId, mainCamera.fieldOfView * 0.5f);
-            Shader.SetGlobalFloat(maxViewDistanceId, maxViewDistance);
-        }
+    computeShader.SetMatrix("_VP", VP);
+    computeShader.SetVector(cameraPosId, mainCamera.transform.position);
+    computeShader.SetVector(cameraDirId, mainCamera.transform.forward.normalized);
+    computeShader.SetFloat(cameraHalfFovId, mainCamera.fieldOfView * 0.5f);
+    Shader.SetGlobalFloat(maxViewDistanceId, maxViewDistance);
+}
 ```
 
 - 将陨石位置转换到裁剪空间中，根据裁剪空间坐标的w值进行最大距离裁剪
@@ -1077,30 +1141,11 @@ title: 总结
 # <mdi-book-open-variant /> 总结
 
 :: content ::
-
-```mermaid{theme:'default', scale:0.6}
-flowchart LR
-  Root[ComputeShader Lesson-1]:::root
-  Root --> GPU[GPU架构]
-  GPU --> GPU1[软件层级]
-  GPU1 --> GPU1_1[Grid，Block，Wrap，Thread]
-
-
-  GPU --> GPU2[硬件层级]
-  GPU2 --> GPU2_2[SM，SP，Rigister，SharedMemory，GlobalMemory]
-  GPU --> kernel[Kernel：GPU中执行的函数]
-
-  Root --> BUF[Buffer 流程]
-  BUF --> BUF1[创建，设置，传递，释放ComputeBuffer]
-
-
-  Root --> RT[RenderTexture 流程]
-  RT --> RT1[创建，设置，传递，释放RenderTexture]
-  Root --> MAP[钻石形状绘制原理]
-  Root --> FUN[Repeat Wrap的原理]
-
-classDef root fill:#ffd97d,stroke:#333,stroke-width:2
-```
+<div class="flex flex-col items-center w-[100%]">
+  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/GPUInstance%E6%80%9D%E7%BB%B4%E5%AF%BC%E5%9B%BE.png?imageSlim" 
+        style="width: 75%;"
+        alt="Indirect"/>
+</div>
 
 ---
 layout: top-title
