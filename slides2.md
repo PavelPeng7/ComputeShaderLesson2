@@ -14,8 +14,6 @@ ComputeShader绘制陨石实例(GPU Instance)
 \* by **Pavel**
 
 
-
-
 ---
 layout: top-title-two-cols
 color: yellow
@@ -670,6 +668,10 @@ title: 随机值函数
 
 
 :: content ::
+生成伪随机数的简易哈希函数实现。
+- v是输入值（通常是 ID、时间、索引等）
+- seed是扰动因子（用于增加变化性）
+
 ```csharp {1|2|3|all}{maxHeight:'150px'}
 float hash(float v, float seed) { return frac(sin(v + seed) * 143758.5453); }
 
@@ -681,6 +683,8 @@ float3 hash3(float v)
         hash(v, 5.7241)
     );
 }
+
+
 ```
 ---
 layout: top-title-two-cols
@@ -815,7 +819,37 @@ Graphics.DrawMeshInstancedIndirect(
 | `bounds`         | 包围所有实例的包围体（Bounds）                                       |
 | ==bufferWithArgs== | 包含绘制实例数量等参数的 GPU 缓冲区（ComputeBuffer 或 GraphicsBuffer） |
 
+---
+layout: top-title
+color: emerald
+align: c
+title: bounds是什么？
+---
 
+:: title ::
+
+# <mdi-code-braces /> bounds是什么？
+
+
+:: content ::
+bounds（边界体，完整类名为UnityEngine.Bounds）是一个非常重要的结构，用于描述一个三维包围盒（AABB，轴对齐包围盒）。
+
+```csharp {all}{maxHeight:'150px'}
+Bounds bounds = new Bounds(Vector3.zero, Vector3.one * 1000f);
+```
+
+<Mug :size="120" mood="excited" color="#ffe7b5" v-drag="[11,276,131,97]"/>
+<Browser :size="120" mood="blissful" color="#c4e8ff" v-drag="[791,286,131,97]"/>
+<SpeechBubble position="l" color='yellow-light' shape="round" maxWidth="300px" v-drag="[232,249,211,89]">
+为什么必须提供Bounds？
+</SpeechBubble>
+
+<SpeechBubble position="r" color='sky-light' shape="round" maxWidth="300px" v-drag="[464,250,300,254]">
+因为 GPU 渲染时要进行视锥体剔除（Frustum Culling），系统必须知道：
+<br>- 这批实例大致在哪儿？
+<br>- 是否应该被当前相机绘制？
+<br>若 Bounds 太小或不准确，实例会被过早剔除，导致“看不见”；若太大，可能增加不必要的绘制。
+</SpeechBubble>
 
 ---
 layout: top-title
@@ -1111,10 +1145,12 @@ title: 绘制剔除后的结果
 # <mdi-code-braces /> 绘制剔除后的结果
 
 :: content ::
+复制数量到argsBuffer，设置剔除后的Buffer到材质，执行绘制。
+
 
 ```c
 // 将 Append 的实际数量写入 argsBuffer[1]
-ComputeBuffer.CopyCount(meteorsCullingOutputBuffer, argsBuffer, sizeof(uint)); // [MOD] 写 instanceCount
+ComputeBuffer.CopyCount(meteorsCullingOutputBuffer, argsBuffer, sizeof(uint)); 
 runtimeMaterial.SetBuffer(materialBufferId, meteorsCullingOutputBuffer);
 Graphics.DrawMeshInstancedIndirect(
     mesh, 0, runtimeMaterial,
@@ -1162,8 +1198,8 @@ title: 参考链接&拓展阅读
 :: content ::
 
 - [深入理解 ComputeShader（CSDN 文章）](https://blog.csdn.net/qq_41554005/article/details/119760698)
-- [Interactive Graphics 20 - Compute & Mesh Shaders](https://www.youtube.com/watch?v=HH-9nfceXFw&t=3305s)
+
 
 - [Compute Shaders Rendering One Million Cubes](https://catlikecoding.com/unity/tutorials/basics/compute-shaders/)
 
-- [ComputeShaderLesson-1工程源码](https://github.com/PavelPeng7/ComputeShaderStudy-Lesson1.git)
+- [图解ComputeShader-第2章工程源码](https://github.com/PavelPeng7/ComputeShaderStudy-Lesson1.git)
