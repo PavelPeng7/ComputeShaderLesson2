@@ -38,7 +38,43 @@ title: 问题：如何高效的绘制大量陨石？
   <div class="text-gray-600"></div>
 </div>
 
+---
+layout: side-title
+side: l
+color: sky
+titlewidth: is-5
+align: rm-lm
+title: 目录
+---
 
+:: title ::
+
+# <mdi-book-open-variant /> 目录导航
+
+:: content ::
+
+
+<div style="max-height: 500px; overflow-y: auto; padding-right: 12px;">
+
+**第1章：GPU Instance介绍**  
+- 介绍三种绘制陨石的方法
+- 三传统绘制与GPUInstance在数据处理上的对比  
+- Procedural与Indirect的区别
+
+**第2章：InstancedProcedural方案**  
+- DrawMeshInstanceProcedrual API  
+- Bound介绍
+- 构建陨石结构体和buffer  
+- Buffer的一生  
+- ComputeShader填充Buffer
+- Shader支持Instance  
+- Shader中应用位置，旋转，缩放  
+
+**第3章：InstanceIndirect方案**  
+- DrawMeshInstanceIndirect API
+- indirectArgs和argsBuffer
+- 绘制剔除后的结果
+</div>
 
 ---
 layout: section
@@ -152,6 +188,9 @@ title: 传统绘制与GPUInstance在数据处理上的对比
   ⚡ *一次命令→GPU线程并行消处理实例数据*
 </div>
 
+<AdmonitionType type="caution" width="500px" v-drag="[200,416,560,73]">
+GPU Instance不适用于每个实例有唯一逻辑/动画行为，数量极少 or 数据频繁变动。
+</AdmonitionType>
 
 ---
 layout: top-title
@@ -480,7 +519,7 @@ title: 轨道位置，旋转，缩放
 # <mdi-code-braces /> 轨道位置，旋转，缩放
 
 :: content ::
-
+让每个实例会沿着一个随机朝向的圆轨道旋转，而不是固定在 XY 平面上。
 ```csharp {1-4|6-8|10-11|13-16|18-21|23-28|29|all}{maxHeight:'150px'}
     //  随机正交基
     float3 sinDir = normalize(hash3(idx) - 0.5);
@@ -566,8 +605,8 @@ title: Shader中应用位置，旋转，缩放
 # <mdi-code-braces /> Shader中应用位置，旋转，缩放
 
 :: content ::
-
-```csharp {1|2|3|all}{maxHeight:'150px'}
+通过修改unity_ObjectToWorld矩阵来完成应用位移，旋转，缩放
+```csharp {1|3|4|6-9|11-22|24-31|33-40|42-43|46-50|53|55-58|59|60|all}{maxHeight:'180px'}
 void ConfigureProcedural()
 {
     #if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
@@ -632,27 +671,33 @@ void ConfigureProcedural()
 }
 ```
 
-<div style="font-size: 80%">
 
+<div style="font-size: 60%">
 $$
-M_{\text{local2world}} = 
+S = 
 \begin{bmatrix}
-s_x \cdot \left( \cos\theta_y\cos\theta_z - \sin\theta_x\sin\theta_y\sin\theta_z \right) & 
-s_y \cdot \left( -\cos\theta_x\sin\theta_z \right) & 
-s_z \cdot \left( \sin\theta_y\cos\theta_z + \sin\theta_x\cos\theta_y\sin\theta_z \right) & 
-t_x \\\\
-s_x \cdot \left( \cos\theta_y\sin\theta_z + \sin\theta_x\sin\theta_y\cos\theta_z \right) & 
-s_y \cdot \left( \cos\theta_x\cos\theta_z \right) & 
-s_z \cdot \left( \sin\theta_y\sin\theta_z - \sin\theta_x\cos\theta_y\cos\theta_z \right) & 
-t_y \\\\
-s_x \cdot \left( -\cos\theta_x\sin\theta_y \right) & 
-s_y \cdot \left( \sin\theta_x \right) & 
-s_z \cdot \left( \cos\theta_x\cos\theta_y \right) & 
-t_z \\\\
+s_x & 0   & 0   & 0 \\\\
+0   & s_y & 0   & 0 \\\\
+0   & 0   & s_z & 0 \\\\
+0   & 0   & 0   & 1
+\end{bmatrix}
+\quad
+R =
+\begin{bmatrix}
+\cos\theta_y \cos\theta_z & -\cos\theta_y \sin\theta_z & \sin\theta_y & 0 \\\\
+\cos\theta_x \sin\theta_z + \sin\theta_x \sin\theta_y \cos\theta_z & \cos\theta_x \cos\theta_z - \sin\theta_x \sin\theta_y \sin\theta_z & -\sin\theta_x \cos\theta_y & 0 \\\\
+\sin\theta_x \sin\theta_z - \cos\theta_x \sin\theta_y \cos\theta_z & \sin\theta_x \cos\theta_z + \cos\theta_x \sin\theta_y \sin\theta_z & \cos\theta_x \cos\theta_y & 0 \\\\
+0 & 0 & 0 & 1
+\end{bmatrix}
+\quad
+T = 
+\begin{bmatrix}
+1 & 0 & 0 & t_x \\\\
+0 & 1 & 0 & t_y \\\\
+0 & 0 & 1 & t_z \\\\
 0 & 0 & 0 & 1
 \end{bmatrix}
 $$
-
 </div>
 
 ---
@@ -691,10 +736,10 @@ layout: top-title-two-cols
 color: emerald
 columns: is-5
 align: c-lt-lt
-title: Shader支持Instance
+title: ShaderGraph中支持Instance
 ---
 :: title ::
-# <mdi-code-braces /> Shader支持Instance
+# <mdi-code-braces /> ShaderGraph中支持Instance
 
 :: left ::
 ## InjectPrograms
@@ -1177,11 +1222,12 @@ title: 总结
 # <mdi-book-open-variant /> 总结
 
 :: content ::
-<div class="flex flex-col items-center w-[100%]">
-  <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/GPUInstance%E6%80%9D%E7%BB%B4%E5%AF%BC%E5%9B%BE.png?imageSlim" 
-        style="width: 75%;"
-        alt="Indirect"/>
-</div>
+- 本章深入讲解了 **DrawMeshInstancedProcedural** 和 **DrawMeshInstancedIndirect** 两种 GPU 实例化技术的实现流程
+- 介绍了如何构建 `Meteor` 结构体、填充和使用 `ComputeBuffer`
+- 对比了 **CPU生成数据** 与 **ComputeShader填充数据** 的流程
+- 重点讲解了 GPU 上如何进行**实例剔除**、**轨道动画计算**、**旋转缩放变换**
+- 演示了在 Shader 中如何使用 `unity_ObjectToWorld` 实现**每个实例的单独变换**
+- 理解了 GPU 实例化的应用场景、优势和限制
 
 ---
 layout: top-title
