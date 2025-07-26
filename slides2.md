@@ -290,6 +290,39 @@ Graphics.DrawMeshInstancedProcedural(
 | ==count==       | 要绘制的实例数量（instance count）                                   |
 
 
+---
+layout: top-title
+color: emerald
+align: c
+title: bounds是什么？
+---
+:: title ::
+
+# <mdi-code-braces /> bounds是什么？
+
+
+:: content ::
+bounds（边界体，完整类名为UnityEngine.Bounds）是一个非常重要的结构，用于描述一个三维包围盒（AABB，轴对齐包围盒）。
+
+```csharp {all}{maxHeight:'150px'}
+// 动态计算Bounds示例
+Vector3 center = CalculateCenter(positions);
+Vector3 size = CalculateMaxDistance(positions) * 2;
+new Bounds(center, size);
+```
+
+<Mug :size="120" mood="excited" color="#ffe7b5" v-drag="[11,276,131,97]"/>
+<Browser :size="120" mood="blissful" color="#c4e8ff" v-drag="[791,286,131,97]"/>
+<SpeechBubble position="l" color='yellow-light' shape="round" maxWidth="300px" v-drag="[232,249,211,89]">
+为什么必须提供Bounds？
+</SpeechBubble>
+
+<SpeechBubble position="r" color='sky-light' shape="round" maxWidth="300px" v-drag="[464,250,300,254]">
+因为 GPU 渲染时要进行视锥体剔除（Frustum Culling），系统必须知道：
+<br>- 这批实例大致在哪儿？
+<br>- 是否应该被当前相机绘制？
+<br>若 Bounds 太小或不准确，实例会被过早剔除，导致“看不见”；若太大，可能增加不必要的绘制。
+</SpeechBubble>
 
 ---
 layout: top-title
@@ -483,6 +516,11 @@ graph LR
   classDef gpu fill:#bbf7d0,stroke:#00838F,stroke-width:1.5,color:#065f46;
   classDef meta fill:#fef9c3,stroke:#eab308,stroke-width:1.5,color:#92400e;
 ```
+
+<AdmonitionType type="tip" width="550px" v-drag="[534,203,356,80]">
+64匹配了AMD Wavefront(32)/NVIDIA Wrap(64)的大小的整数倍。
+</AdmonitionType>
+
 ---
 layout: top-title
 color: emerald
@@ -864,37 +902,7 @@ Graphics.DrawMeshInstancedIndirect(
 | `bounds`         | 包围所有实例的包围体（Bounds）                                       |
 | ==bufferWithArgs== | 包含绘制实例数量等参数的 GPU 缓冲区（ComputeBuffer 或 GraphicsBuffer） |
 
----
-layout: top-title
-color: emerald
-align: c
-title: bounds是什么？
----
 
-:: title ::
-
-# <mdi-code-braces /> bounds是什么？
-
-
-:: content ::
-bounds（边界体，完整类名为UnityEngine.Bounds）是一个非常重要的结构，用于描述一个三维包围盒（AABB，轴对齐包围盒）。
-
-```csharp {all}{maxHeight:'150px'}
-Bounds bounds = new Bounds(Vector3.zero, Vector3.one * 1000f);
-```
-
-<Mug :size="120" mood="excited" color="#ffe7b5" v-drag="[11,276,131,97]"/>
-<Browser :size="120" mood="blissful" color="#c4e8ff" v-drag="[791,286,131,97]"/>
-<SpeechBubble position="l" color='yellow-light' shape="round" maxWidth="300px" v-drag="[232,249,211,89]">
-为什么必须提供Bounds？
-</SpeechBubble>
-
-<SpeechBubble position="r" color='sky-light' shape="round" maxWidth="300px" v-drag="[464,250,300,254]">
-因为 GPU 渲染时要进行视锥体剔除（Frustum Culling），系统必须知道：
-<br>- 这批实例大致在哪儿？
-<br>- 是否应该被当前相机绘制？
-<br>若 Bounds 太小或不准确，实例会被过早剔除，导致“看不见”；若太大，可能增加不必要的绘制。
-</SpeechBubble>
 
 ---
 layout: top-title
@@ -907,15 +915,15 @@ title: 添加cullingOutputBuffer
 # <mdi-code-braces /> 添加cullingOutputBuffer
 
 :: content ::
-<AdmonitionType type="tip" width="400px" v-drag="[569,140,328,78]">
-argsBuffer是args数组组成的argsData设置的。
+<AdmonitionType type="tip" width="400px" v-drag="[654,104,265,101]">
+SetCounterValue将重置或修改GPU Buffer的元素数量记录，比如将其设置为 0，相当于“清空” Buffer
 </AdmonitionType>
 
 - cullingOutputBuffer用来存储ComputeShader输出裁剪后的实例数据
 - 这个buffer将替代前面的inputBuffer输入到材质
 - 他的数量会被复制到==argsBuffer==控制实例绘制的数量
 
-```csharp {10|all}{maxHeight:'300px'}
+```csharp {10|12|15|70-74|19-28|30|34|38|50|51|52|all}{maxHeight:'300px'}
    struct Meteor
     {
         public Vector3 position;
@@ -1222,12 +1230,12 @@ title: 总结
 # <mdi-book-open-variant /> 总结
 
 :: content ::
-- 本章深入讲解了 **DrawMeshInstancedProcedural** 和 **DrawMeshInstancedIndirect** 两种 GPU 实例化技术的实现流程
-- 介绍了如何构建 `Meteor` 结构体、填充和使用 `ComputeBuffer`
-- 对比了 **CPU生成数据** 与 **ComputeShader填充数据** 的流程
-- 重点讲解了 GPU 上如何进行**实例剔除**、**轨道动画计算**、**旋转缩放变换**
-- 演示了在 Shader 中如何使用 `unity_ObjectToWorld` 实现**每个实例的单独变换**
-- 理解了 GPU 实例化的应用场景、优势和限制
+- **DrawMeshInstancedProcedural**和**DrawMeshInstancedIndirect**两种 GPU 实例化技术的实现流程
+- 如何构建 `Meteor` 结构体、填充和使用 `ComputeBuffer`
+- 对比了CPU生成数据与ComputeShader填充数据的流程
+- 重点讲解了GPU上如何进行实例剔除、轨道动画计算、旋转缩放变换
+- 演示了在Shader中如何使用 `unity_ObjectToWorld`实现**每个实例的单独变换**
+- 理解了GPU实例化的应用场景、优势和限制
 
 ---
 layout: top-title
@@ -1248,4 +1256,4 @@ title: 参考链接&拓展阅读
 
 - [Compute Shaders Rendering One Million Cubes](https://catlikecoding.com/unity/tutorials/basics/compute-shaders/)
 
-- [图解ComputeShader-第2章工程源码](https://github.com/PavelPeng7/ComputeShaderStudy-Lesson1.git)
+- [图解ComputeShader-第2章工程源码](https://github.com/PavelPeng7/CS-InstanceMeteors)
