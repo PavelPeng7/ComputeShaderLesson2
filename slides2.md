@@ -25,8 +25,9 @@ title: 问题：如何高效的绘制大量陨石？
 # <mdi-help-circle /> 问题：如何高效的绘制大量陨石？
 
 :: left ::
-- 陨石能够有不同的位移，大小，旋转
-- 陨石沿着一定轨道运动，不同陨石有材质变化
+- 不同的位移，大小，自转
+- 不同的运动轨道
+- 陨石之间有不同的视觉效果
 
 
 :: right ::
@@ -58,7 +59,7 @@ title: 目录
 
 **第1章：GPU Instance介绍**  
 - 介绍三种绘制陨石的方法
-- 三传统绘制与GPUInstance在数据处理上的对比  
+- 传统绘制与GPUInstance在数据处理上的对比  
 - Procedural与Indirect的区别
 
 **第2章：InstancedProcedural方案**  
@@ -101,11 +102,11 @@ title: 介绍三种绘制陨石的方法
 :: content ::
 <div class="text-sm overflow-x-auto">
 
-| API | 实例创建 | Draw Call | 数量限制 | 典型用途 |
+| API | 实例创建 | Draw Call | 数量决定 | 典型用途 |
 |-----|----------|-----------|----------|----------|
-| **Object.Instantiate** | 克隆Prefab | 多次 | 随着数量上升性能大幅度下降 | 少量带脚本物体 |
+| **Object.Instantiate** | 克隆Prefab | 多次 | CPU决定 | 少量，带脚本物体 |
 | **DrawMeshInstanced­Procedural** | CPU一次DrawCall | 1 次 | CPU传count | 稳定大批粒子、草 |
-| **DrawMeshInstanced­Indirect** | 同上 | 1 次 | GPU更新ArgsBuffer | GPU剔除草海、爆破碎片 |
+| **DrawMeshInstanced­Indirect** | 同上 | 1 次 | GPU更新ArgsBuffer | GPU剔除草海、陨石等 |
 
 </div>
 
@@ -148,7 +149,7 @@ title: 传统绘制与GPUInstance在数据处理上的对比
 ### 传统绘制（逐实例 Draw）
 <div class="space-y-2 text-[13px] font-mono">
   <div class="px-3 py-1 rounded bg-red-50 border border-red-300">for (i = 0; i < N; ++i)</div>
-  <div class="px-3 py-1 rounded bg-red-50 border border-red-300">SetPerObject(i)</div>
+  <div class="px-3 py-1 rounded bg-red-50 border border-red-300">Instantiate(i)</div>
   <div class="px-3 py-1 rounded bg-red-50 border border-red-300">DrawCall()</div>
   <div class="px-3 py-1 rounded bg-red-100 border border-red-300">CPU循环N次</div>
 </div>
@@ -167,8 +168,8 @@ title: 传统绘制与GPUInstance在数据处理上的对比
 :: right ::
 ### Instancing / Indirect（一次批处理）
 <div class="space-y-2 text-[13px] font-mono">
-  <div class="px-3 py-1 rounded bg-emerald-50 border border-emerald-300">Upload Mesh(共享)</div>
-  <div class="px-3 py-1 rounded bg-emerald-50 border border-emerald-300">Upload InstanceBuffer[N]</div>
+  <div class="px-3 py-1 rounded bg-emerald-50 border border-emerald-300">一次传递Mesh</div>
+  <div class="px-3 py-1 rounded bg-emerald-50 border border-emerald-300">InstanceBuffer[N]</div>
   <div class="px-3 py-1 rounded bg-emerald-200 border border-emerald-400">DrawInstanced/Indirect(1 次)</div>
   <div class="px-3 py-1 rounded bg-emerald-100 border border-emerald-300">GPU内部并行展开N个实例</div>
 </div>
@@ -208,13 +209,13 @@ title: Procedural vs Indirect
 <v-clicks at="+0" class="ns-c-fader">
 
 - Procedural（DrawMeshInstancedProcedural）：
-GPU 负责绘制，CPU 直接指定实例数量（count），实例数据通常来自 StructuredBuffer，不支持GPU裁剪。适合==实例数已知、裁剪需求不高==的情况。
+GPU 负责绘制，CPU 直接指定实例数量（count），实例数据通常来自Buffer，不支持GPU裁剪。适合==实例数已知、裁剪需求不高==的情况。
 - Indirect（DrawMeshInstancedIndirect）：
-GPU负责绘制，实例数量由GPU决定（如由 ComputeBuffer 裁剪后CopyCount得到）。适合大规模实例、需要==GPU动态剔除==或其他运行时调整的场景。
+GPU负责绘制，实例数量由GPU决定（如由ComputeBuffer裁剪后CopyCount得到）。适合大规模实例、需要==GPU动态剔除==或其他运行时调整的场景。
 
 </v-clicks>
 
-<Box v-drag="[625,347,163,89]" shape='r-d-2-70' color='orange-light' custom='pt-0'>添加</Box>
+<Box v-drag="[563,347,301,89]" shape='r-d-2-70' color='orange-light' custom='pt-0'>特点</Box>
 
 <div class="grid grid-cols-2 gap-8 text-[12px] font-sans select-none">
 
@@ -225,10 +226,10 @@ GPU负责绘制，实例数量由GPU决定（如由 ComputeBuffer 裁剪后CopyC
       <div class="px-2 py-[2px] rounded bg-gray-100 border border-gray-300">CPU: count = N</div>
       <div class="px-2 py-[2px] rounded bg-sky-100 border border-sky-300">InstanceBuffer(N)</div>
       <div class="px-2 py-[2px] rounded bg-sky-200 border border-sky-500">DrawProcedural(N)</div>
-      <div class="px-2 py-[2px] rounded bg-emerald-100 border border-emerald-300">GPU并行 N</div>
+      <div class="px-2 py-[2px] rounded bg-emerald-100 border border-emerald-300">GPU并行绘制 N</div>
     </div>
     <div class="text-[10px] text-gray-500 leading-snug">
-      固定 N；剔除需 CPU 改 count
+      固定N：不适合支持剔除
     </div>
   </div>
 
@@ -237,14 +238,14 @@ GPU负责绘制，实例数量由GPU决定（如由 ComputeBuffer 裁剪后CopyC
     <div class="text-center font-bold text-emerald-600">Indirect</div>
     <div class="flex flex-col items-center gap-1 font-mono">
       <div class="px-2 py-[2px] rounded bg-gray-100 border border-gray-300">CPU init</div>
-      <div class="px-2 py-[2px] rounded bg-sky-100 border border-sky-300">InstanceBuffer</div>
-      <div class="px-2 py-[2px] rounded bg-yellow-100 border border-yellow-300">Compute剔除</div>
-      <div class="px-2 py-[2px] rounded bg-purple-100 border border-purple-300">CopyCount→Args</div>
+      <div class="px-2 py-[2px] rounded bg-sky-100 border border-sky-300">InstanceBuffer(最大数量)</div>
+      <div class="px-2 py-[2px] rounded bg-yellow-100 border border-yellow-300">ComputeShader剔除</div>
+      <div class="px-2 py-[2px] rounded bg-purple-100 border border-purple-300">CopyCount：CullingBuffer→ArgsBuffer</div>
       <div class="px-2 py-[2px] rounded bg-emerald-200 border border-emerald-500">DrawIndirect(M)</div>
       <div class="px-2 py-[2px] rounded bg-emerald-100 border border-emerald-300">GPU并行 M</div>
     </div>
     <div class="text-[10px] text-gray-500 leading-snug">
-      M 由 GPU 决定；适合大规模 + 动态剔除
+      M数量由GPU决定；适合大规模+动态剔除
     </div>
   </div>
 </div>
@@ -268,7 +269,7 @@ title: GPUInstanceProcedrual API
 
 :: title ::
 
-# <mdi-code-braces /> GPUInstanceProcedrual API
+# <mdi-code-braces /> GPUInstancedProcedrual API
 
 
 
@@ -296,13 +297,14 @@ color: emerald
 align: c
 title: bounds是什么？
 ---
+
 :: title ::
 
 # <mdi-code-braces /> bounds是什么？
 
 
 :: content ::
-bounds（边界体，完整类名为UnityEngine.Bounds）是一个非常重要的结构，用于描述一个三维包围盒（AABB，轴对齐包围盒）。
+bounds（边界体）是一个非常重要的结构，用于描述一个三维包围盒（AABB，轴对齐包围盒）。
 
 ```csharp {all}{maxHeight:'150px'}
 // 动态计算Bounds示例
@@ -317,11 +319,12 @@ new Bounds(center, size);
 为什么必须提供Bounds？
 </SpeechBubble>
 
-<SpeechBubble position="r" color='sky-light' shape="round" maxWidth="300px" v-drag="[464,250,300,254]">
+<SpeechBubble position="r" color='sky-light' shape="round" maxWidth="300px" v-drag="[465,234,300,297]">
 因为 GPU 渲染时要进行视锥体剔除（Frustum Culling），系统必须知道：
 <br>- 这批实例大致在哪儿？
 <br>- 是否应该被当前相机绘制？
-<br>若 Bounds 太小或不准确，实例会被过早剔除，导致“看不见”；若太大，可能增加不必要的绘制。
+<br>若Bounds太小，实例会被过早剔除，导致“看不见”；若太大，可能增加不必要的绘制。
+<br>除此之外Bounds还能被用作粗粒度的剔除
 </SpeechBubble>
 
 ---
@@ -534,9 +537,9 @@ title: 随机正交基坐标系
 :: content ::
 为每个实例生成一个局部坐标系，特别是在 GPU 实例化中非常常见，用于控制旋转方向或运动路径。
 ```csharp {1|2|3|all}{maxHeight:'150px'}
-float3 sinDir = normalize(hash3(idx) - 0.5);
+float3 xDir = normalize(hash3(idx) - 0.5);
 float3 vec    = normalize(hash3(idx + 71.393) - 0.5);
-float3 cosDir = normalize(cross(sinDir, vec));
+float3 yDir = normalize(cross(xDir, vec));
 ```
 <div class="flex flex-col items-center w-[90%]">
   <img src="https://pavelblog-images-1333471781.cos.ap-shanghai.myqcloud.com/ObsidianImages/CrossFunction.png?imageSlim" 
@@ -560,21 +563,21 @@ title: 轨道位置，旋转，缩放
 让每个实例会沿着一个随机朝向的圆轨道旋转，而不是固定在 XY 平面上。
 ```csharp {1-4|6-8|10-11|13-16|18-21|23-28|29|all}{maxHeight:'150px'}
     //  随机正交基
-    float3 sinDir = normalize(hash3(idx) - 0.5);
+    float3 xDir = normalize(hash3(idx) - 0.5);
     float3 vec    = normalize(hash3(idx + 71.393) - 0.5);
-    float3 cosDir = normalize(cross(sinDir, vec));
+    float3 yDir = normalize(cross(xDir, vec));
 
     // 时间 & 相位
     float basePhase  = hash(idx, 11.27) * 6.2831853;
     float scaledTime = _time * _speed + basePhase;
 
     // 轨道位置
-    float3 pos = (sinDir * sin(scaledTime) + cosDir * cos(scaledTime)) * _range;
+    float3 pos = (xDir * sin(scaledTime) + yDir * cos(scaledTime)) * _range;
 
     // 自转
     float spinSpeed = lerp(2.0, 8.0, hash(idx, 37.21));
     float angleRad  = scaledTime * spinSpeed;
-    float3 axisAngle = sinDir * angleRad;
+    float3 axisAngle = xDir * angleRad;
 
     // 缩放
     float rand01 = hash(idx, 19.87);
@@ -614,7 +617,7 @@ title: 轨道位置，旋转，缩放
   <div>
     <div class="font-bold text-emerald-600 mb-1">
       三维空间轨道<br />
-      <span class="text-[11px] text-gray-500">(sinDir/cosDir 构造)</span>
+      <span class="text-[11px] text-gray-500">(xDir/yDir 构造)</span>
     </div>
     <div class="relative h-[150px] w-full flex justify-center items-center">
       <svg viewBox="0 0 200 200" class="w-[140px] h-[140px] drop-shadow-sm">
@@ -882,7 +885,7 @@ title: DrawMeshInstanceIndirect API
 
 :: title ::
 
-# <mdi-code-braces /> DrawMeshInstanceProcedual API
+# <mdi-code-braces /> DrawMeshInstanceIndirect API
 
 :: content ::
 ```csharp {all}{maxHeight:'150px'}
@@ -1130,7 +1133,7 @@ title: ComputeShader执行视锥体剔除
 
 :: left ::
 - 传递透视投影矩阵，相机位置，相机朝向，FOV角度，最大渲染距离
-```csharp {1|2|3|all}{maxHeight:'150px'}
+```csharp {3-5|7|8|9|10|11|all}{maxHeight:'150px'}
 if (mainCamera != null)
 {
     var V  = mainCamera.worldToCameraMatrix;
@@ -1147,7 +1150,7 @@ if (mainCamera != null)
 
 - 将陨石位置转换到裁剪空间中，根据裁剪空间坐标的w值进行最大距离裁剪
 - 再转换到NDC空间中进行裁剪
-```csharp {1|2|3|all}{maxHeight:'150px'}
+```csharp {7-11|14|15-16|18|19|22-23|24|all}{maxHeight:'150px'}
 [numthreads(64,1,1)]
 void MeteorInstancer(uint3 id : SV_DispatchThreadID)
 {
@@ -1255,5 +1258,7 @@ title: 参考链接&拓展阅读
 
 
 - [Compute Shaders Rendering One Million Cubes](https://catlikecoding.com/unity/tutorials/basics/compute-shaders/)
+
+- [草Hi-z剔除](https://github.com/jackie2009/HiZ_grass_culling)
 
 - [图解ComputeShader-第2章工程源码](https://github.com/PavelPeng7/CS-InstanceMeteors)
